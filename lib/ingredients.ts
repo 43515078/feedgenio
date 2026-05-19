@@ -1,19 +1,53 @@
+export type NutrientKey =
+  | "energy"
+  | "protein"
+  | "lysine"
+  | "methionine"
+  | "metCys"
+  | "calcium"
+  | "availablePhosphorus"
+  | "sodium";
+
 export type Ingredient = {
   id: string;
   name: string;
   price: number;
   min: number;
   max: number;
-  nutrients: {
-    energy: number;
-    protein: number;
-    lysine: number;
-    methionine: number;
-    metCys: number;
-    calcium: number;
-    availablePhosphorus: number;
-    sodium: number;
+  nutrients: Record<NutrientKey, number>;
+};
+
+export function createEmptyIngredient(): Ingredient {
+  const timestamp = Date.now();
+
+  return {
+    id: `ingrediente_${timestamp}`,
+    name: "Nuevo ingrediente",
+    price: 0,
+    min: 0,
+    max: 100,
+    nutrients: {
+      energy: 0,
+      protein: 0,
+      lysine: 0,
+      methionine: 0,
+      metCys: 0,
+      calcium: 0,
+      availablePhosphorus: 0,
+      sodium: 0
+    }
   };
+}
+
+export const nutrientLabels: Record<NutrientKey, string> = {
+  energy: "EM",
+  protein: "PB",
+  lysine: "Lis",
+  methionine: "Met",
+  metCys: "M+C",
+  calcium: "Ca",
+  availablePhosphorus: "P disp",
+  sodium: "Na"
 };
 
 export const defaultIngredients: Ingredient[] = [
