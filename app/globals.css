@@ -1,0 +1,167 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f3f6f4;
+  color: #17211b;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+input {
+  font: inherit;
+}
+
+button {
+  font: inherit;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hero {
+  background: linear-gradient(135deg, #123524, #1f7a4d);
+  color: white;
+  padding: 28px;
+  border-radius: 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 16px 35px rgba(18, 53, 36, 0.25);
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: 38px;
+}
+
+.hero p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 17px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  background: white;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 12px 28px rgba(15, 30, 20, 0.08);
+  border: 1px solid #e4ece7;
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 22px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  background: #edf5ef;
+  color: #244232;
+}
+
+th,
+td {
+  padding: 10px;
+  border-bottom: 1px solid #e5ece7;
+}
+
+.price-input {
+  width: 90px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid #cfdcd4;
+}
+
+.action {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 16px;
+  background: #1f7a4d;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: #17603c;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 650px) {
+  .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.stat {
+  background: #f0f7f2;
+  border: 1px solid #dcebe1;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.stat span {
+  display: block;
+  font-size: 13px;
+  color: #607368;
+}
+
+.stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.good {
+  color: #17603c;
+  font-weight: 700;
+}
+
+.bad {
+  color: #a92828;
+  font-weight: 700;
+}
+
+.warning {
+  background: #fff3d7;
+  border: 1px solid #f1d28a;
+  padding: 14px;
+  border-radius: 16px;
+}
