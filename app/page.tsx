@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { defaultIngredients, type Ingredient } from "@/lib/ingredients";
 import { layerRequirement } from "@/lib/requirements";
-import { solveFormula } from "@/lib/solver";
+import type { FormulaResult } from "@/lib/solver";
 
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
@@ -13,16 +13,60 @@ export default function HomePage() {
   const [ingredients, setIngredients] =
     useState<Ingredient[]>(defaultIngredients);
 
-  const result = useMemo(() => {
-    return solveFormula(ingredients, layerRequirement);
-  }, [ingredients]);
+  const [result, setResult] = useState<FormulaResult | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function calculateFormula(currentIngredients: Ingredient[]) {
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/solve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ingredients: currentIngredients
+        })
+      });
+
+      const data = (await response.json()) as FormulaResult;
+      setResult(data);
+    } catch {
+      setResult({
+        feasible: false,
+        costPerKg: 0,
+        costPer100Kg: 0,
+        costPer50Kg: 0,
+        ingredients: [],
+        nutrients: {
+          energy: 0,
+          protein: 0,
+          lysine: 0,
+          methionine: 0,
+          metCys: 0,
+          calcium: 0,
+          availablePhosphorus: 0,
+          sodium: 0
+        },
+        message: "No se pudo conectar con el calculador."
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    calculateFormula(defaultIngredients);
+  }, []);
 
   function updatePrice(id: string, price: number) {
-    setIngredients((current) =>
-      current.map((ingredient) =>
-        ingredient.id === id ? { ...ingredient, price } : ingredient
-      )
+    const updatedIngredients = ingredients.map((ingredient) =>
+      ingredient.id === id ? { ...ingredient, price } : ingredient
     );
+
+    setIngredients(updatedIngredients);
+    calculateFormula(updatedIngredients);
   }
 
   return (
@@ -75,6 +119,14 @@ export default function HomePage() {
                 </tbody>
               </table>
             </div>
+
+            <button
+              className="action"
+              type="button"
+              onClick={() => calculateFormula(ingredients)}
+            >
+              {loading ? "Calculando..." : "Recalcular fórmula"}
+            </button>
           </div>
 
           <div className="card">
@@ -122,7 +174,9 @@ export default function HomePage() {
         <section className="card" style={{ marginTop: 18 }}>
           <h2>⚖️ Fórmula calculada</h2>
 
-          {!result.feasible ? (
+          {!result ? (
+            <p>Calculando fórmula...</p>
+          ) : !result.feasible ? (
             <div className="warning">
               <strong>No se pudo formular.</strong>
               <p>{result.message}</p>
@@ -170,7 +224,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {result.feasible && (
+        {result?.feasible && (
           <section className="card" style={{ marginTop: 18 }}>
             <h2>🧪 Nutrientes obtenidos</h2>
 
