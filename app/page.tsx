@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { defaultIngredients, type Ingredient } from "@/lib/ingredients";
@@ -150,12 +150,6 @@ export default function HomePage() {
                     <th>Precio S/kg</th>
                     <th>Mín %</th>
                     <th>Máx %</th>
-                    <th>EM</th>
-                    <th>PB</th>
-                    <th>Lis</th>
-                    <th>Met</th>
-                    <th>Ca</th>
-                    <th>P disp</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,12 +213,6 @@ export default function HomePage() {
                           }
                         />
                       </td>
-                      <td>{ingredient.nutrients.energy}</td>
-                      <td>{ingredient.nutrients.protein}</td>
-                      <td>{ingredient.nutrients.lysine}</td>
-                      <td>{ingredient.nutrients.methionine}</td>
-                      <td>{ingredient.nutrients.calcium}</td>
-                      <td>{ingredient.nutrients.availablePhosphorus}</td>
                     </tr>
                   ))}
                 </tbody>
