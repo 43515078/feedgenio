@@ -1,23 +1,41 @@
-"use client";
+ "use client";
 
 import { useEffect, useState } from "react";
 import { defaultIngredients, type Ingredient } from "@/lib/ingredients";
 import { layerRequirement } from "@/lib/requirements";
 import type { FormulaResult } from "@/lib/solver";
 
+type EditableIngredient = Ingredient & {
+  active: boolean;
+};
+
+const STORAGE_KEY = "feedgenio_ingredients_v1";
+
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
 }
 
+function getInitialIngredients(): EditableIngredient[] {
+  return defaultIngredients.map((ingredient) => ({
+    ...ingredient,
+    active: true
+  }));
+}
+
 export default function HomePage() {
-  const [ingredients, setIngredients] =
-    useState<Ingredient[]>(defaultIngredients);
+  const [ingredients, setIngredients] = useState<EditableIngredient[]>(
+    getInitialIngredients()
+  );
 
   const [result, setResult] = useState<FormulaResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function calculateFormula(currentIngredients: Ingredient[]) {
+  async function calculateFormula(currentIngredients: EditableIngredient[]) {
     setLoading(true);
+
+    const activeIngredients = currentIngredients.filter(
+      (ingredient) => ingredient.active
+    );
 
     try {
       const response = await fetch("/api/solve", {
@@ -26,7 +44,7 @@ export default function HomePage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          ingredients: currentIngredients
+          ingredients: activeIngredients
         })
       });
 
@@ -57,16 +75,55 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    calculateFormula(defaultIngredients);
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as EditableIngredient[];
+        setIngredients(parsed);
+        calculateFormula(parsed);
+        return;
+      } catch {
+        calculateFormula(getInitialIngredients());
+        return;
+      }
+    }
+
+    calculateFormula(getInitialIngredients());
   }, []);
 
-  function updatePrice(id: string, price: number) {
+  function saveAndCalculate(updatedIngredients: EditableIngredient[]) {
+    setIngredients(updatedIngredients);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedIngredients));
+    calculateFormula(updatedIngredients);
+  }
+
+  function updateIngredient(
+    id: string,
+    field: "price" | "min" | "max",
+    value: number
+  ) {
     const updatedIngredients = ingredients.map((ingredient) =>
-      ingredient.id === id ? { ...ingredient, price } : ingredient
+      ingredient.id === id ? { ...ingredient, [field]: value } : ingredient
     );
 
-    setIngredients(updatedIngredients);
-    calculateFormula(updatedIngredients);
+    saveAndCalculate(updatedIngredients);
+  }
+
+  function toggleIngredient(id: string) {
+    const updatedIngredients = ingredients.map((ingredient) =>
+      ingredient.id === id
+        ? { ...ingredient, active: !ingredient.active }
+        : ingredient
+    );
+
+    saveAndCalculate(updatedIngredients);
+  }
+
+  function resetIngredients() {
+    const freshIngredients = getInitialIngredients();
+    window.localStorage.removeItem(STORAGE_KEY);
+    saveAndCalculate(freshIngredients);
   }
 
   return (
@@ -82,21 +139,40 @@ export default function HomePage() {
 
         <section className="grid">
           <div className="card">
-            <h2>📦 Insumos y precios</h2>
+            <h2>📦 Insumos, precios y límites</h2>
 
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
+                    <th>Usar</th>
                     <th>Insumo</th>
                     <th>Precio S/kg</th>
                     <th>Mín %</th>
                     <th>Máx %</th>
+                    <th>EM</th>
+                    <th>PB</th>
+                    <th>Lis</th>
+                    <th>Met</th>
+                    <th>Ca</th>
+                    <th>P disp</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ingredients.map((ingredient) => (
-                    <tr key={ingredient.id}>
+                    <tr
+                      key={ingredient.id}
+                      style={{
+                        opacity: ingredient.active ? 1 : 0.45
+                      }}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={ingredient.active}
+                          onChange={() => toggleIngredient(ingredient.id)}
+                        />
+                      </td>
                       <td>{ingredient.name}</td>
                       <td>
                         <input
@@ -105,15 +181,50 @@ export default function HomePage() {
                           step="0.01"
                           value={ingredient.price}
                           onChange={(event) =>
-                            updatePrice(
+                            updateIngredient(
                               ingredient.id,
-                              Number(event.target.value)
+                              "price",
+                              Number(event.target.value || 0)
                             )
                           }
                         />
                       </td>
-                      <td>{ingredient.min}</td>
-                      <td>{ingredient.max}</td>
+                      <td>
+                        <input
+                          className="price-input"
+                          type="number"
+                          step="0.1"
+                          value={ingredient.min}
+                          onChange={(event) =>
+                            updateIngredient(
+                              ingredient.id,
+                              "min",
+                              Number(event.target.value || 0)
+                            )
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="price-input"
+                          type="number"
+                          step="0.1"
+                          value={ingredient.max}
+                          onChange={(event) =>
+                            updateIngredient(
+                              ingredient.id,
+                              "max",
+                              Number(event.target.value || 0)
+                            )
+                          }
+                        />
+                      </td>
+                      <td>{ingredient.nutrients.energy}</td>
+                      <td>{ingredient.nutrients.protein}</td>
+                      <td>{ingredient.nutrients.lysine}</td>
+                      <td>{ingredient.nutrients.methionine}</td>
+                      <td>{ingredient.nutrients.calcium}</td>
+                      <td>{ingredient.nutrients.availablePhosphorus}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -126,6 +237,18 @@ export default function HomePage() {
               onClick={() => calculateFormula(ingredients)}
             >
               {loading ? "Calculando..." : "Recalcular fórmula"}
+            </button>
+
+            <button
+              className="action"
+              type="button"
+              onClick={resetIngredients}
+              style={{
+                marginTop: 10,
+                background: "#5d6b63"
+              }}
+            >
+              Reiniciar datos
             </button>
           </div>
 
