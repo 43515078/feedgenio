@@ -1,3 +1,5 @@
+import type { NutrientKey } from "@/lib/ingredients";
+import { nutrientLabels } from "@/lib/ingredients";
 import type { Requirement } from "@/lib/requirements";
 import type { FormulaResult } from "@/lib/solver";
 
@@ -7,6 +9,7 @@ type Props = {
 };
 
 type NutrientRow = {
+  key: NutrientKey;
   label: string;
   obtained: number;
   required: number;
@@ -19,8 +22,36 @@ type Alert = {
   message: string;
 };
 
+const nutrientKeys: NutrientKey[] = [
+  "energy",
+  "protein",
+  "lysine",
+  "methionine",
+  "metCys",
+  "threonine",
+  "tryptophan",
+  "arginine",
+  "isoleucine",
+  "valine",
+  "calcium",
+  "availablePhosphorus",
+  "sodium",
+  "chlorine",
+  "linoleicAcid"
+];
+
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
+}
+
+function nutrientSuffix(key: NutrientKey) {
+  if (key === "energy") return " kcal/kg";
+  return "%";
+}
+
+function nutrientDecimals(key: NutrientKey) {
+  if (key === "energy") return 0;
+  return 2;
 }
 
 function getStatus(obtained: number, required: number) {
@@ -54,10 +85,6 @@ function findAmount(result: FormulaResult, keywords: string[]) {
   );
 
   return item?.amountKg100 || 0;
-}
-
-function hasIngredient(result: FormulaResult, keywords: string[]) {
-  return findAmount(result, keywords) > 0.001;
 }
 
 function getProfileFlags(requirementName: string) {
@@ -223,6 +250,14 @@ function buildFormulaAlerts(
     });
   }
 
+  if (result.nutrients.linoleicAcid < requirement.linoleicAcid) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Ácido linoleico por debajo del requerimiento. En ponedoras puede afectar tamaño de huevo o desempeño según etapa."
+    });
+  }
+
   if (alerts.length === 0) {
     alerts.push({
       level: "info",
@@ -240,8 +275,24 @@ function alertClass(level: Alert["level"]) {
   return "note";
 }
 
+function buildNutrientRows(
+  result: FormulaResult,
+  requirement: Requirement
+): NutrientRow[] {
+  return nutrientKeys.map((key) => ({
+    key,
+    label: nutrientLabels[key],
+    obtained: Number(result.nutrients[key] || 0),
+    required: Number(requirement[key] || 0),
+    decimals: nutrientDecimals(key),
+    suffix: nutrientSuffix(key)
+  }));
+}
+
 function buildSummary(result: FormulaResult, requirement: Requirement) {
   if (!result.feasible) return "";
+
+  const nutrientRows = buildNutrientRows(result, requirement);
 
   const lines = [
     `FeedGenio - ${requirement.name}`,
@@ -266,81 +317,19 @@ function buildSummary(result: FormulaResult, requirement: Requirement) {
   lines.push(`Costo por 100 kg: S/ ${round(result.costPer100Kg, 2)}`);
   lines.push("");
   lines.push("Nutrientes obtenidos:");
-  lines.push(`Energía: ${round(result.nutrients.energy, 0)} kcal/kg`);
-  lines.push(`Proteína: ${round(result.nutrients.protein, 2)}%`);
-  lines.push(`Lisina: ${round(result.nutrients.lysine, 2)}%`);
-  lines.push(`Metionina: ${round(result.nutrients.methionine, 2)}%`);
-  lines.push(`Met + Cist: ${round(result.nutrients.metCys, 2)}%`);
-  lines.push(`Calcio: ${round(result.nutrients.calcium, 2)}%`);
-  lines.push(
-    `Fósforo disponible: ${round(result.nutrients.availablePhosphorus, 2)}%`
-  );
-  lines.push(`Sodio: ${round(result.nutrients.sodium, 2)}%`);
+
+  nutrientRows.forEach((row) => {
+    lines.push(
+      `${row.label}: ${round(row.obtained, row.decimals)}${row.suffix}`
+    );
+  });
 
   return lines.join("\n");
 }
 
 export default function ResultsTab({ result, requirement }: Props) {
-  const nutrientRows: NutrientRow[] = result?.feasible
-    ? [
-        {
-          label: "Energía",
-          obtained: result.nutrients.energy,
-          required: requirement.energy,
-          decimals: 0,
-          suffix: " kcal/kg"
-        },
-        {
-          label: "Proteína",
-          obtained: result.nutrients.protein,
-          required: requirement.protein,
-          decimals: 2,
-          suffix: "%"
-        },
-        {
-          label: "Lisina",
-          obtained: result.nutrients.lysine,
-          required: requirement.lysine,
-          decimals: 2,
-          suffix: "%"
-        },
-        {
-          label: "Metionina",
-          obtained: result.nutrients.methionine,
-          required: requirement.methionine,
-          decimals: 2,
-          suffix: "%"
-        },
-        {
-          label: "Met + Cist",
-          obtained: result.nutrients.metCys,
-          required: requirement.metCys,
-          decimals: 2,
-          suffix: "%"
-        },
-        {
-          label: "Calcio",
-          obtained: result.nutrients.calcium,
-          required: requirement.calcium,
-          decimals: 2,
-          suffix: "%"
-        },
-        {
-          label: "P disp",
-          obtained: result.nutrients.availablePhosphorus,
-          required: requirement.availablePhosphorus,
-          decimals: 2,
-          suffix: "%"
-        },
-        {
-          label: "Sodio",
-          obtained: result.nutrients.sodium,
-          required: requirement.sodium,
-          decimals: 2,
-          suffix: "%"
-        }
-      ]
-    : [];
+  const nutrientRows =
+    result?.feasible ? buildNutrientRows(result, requirement) : [];
 
   const alerts =
     result?.feasible ? buildFormulaAlerts(result, requirement) : [];
@@ -444,7 +433,7 @@ export default function ResultsTab({ result, requirement }: Props) {
             className="price-input"
             style={{
               width: "100%",
-              minHeight: 260,
+              minHeight: 320,
               lineHeight: 1.5
             }}
             value={summary}
@@ -479,7 +468,7 @@ export default function ResultsTab({ result, requirement }: Props) {
                   const status = getStatus(row.obtained, row.required);
 
                   return (
-                    <tr key={row.label}>
+                    <tr key={row.key}>
                       <td>{row.label}</td>
                       <td>
                         {round(row.obtained, row.decimals)}
