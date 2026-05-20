@@ -6,6 +6,7 @@ import type { FormulaResult } from "@/lib/solver";
 type Props = {
   result: FormulaResult | null;
   requirement: Requirement;
+  onSaveFormula: () => void;
 };
 
 type NutrientRow = {
@@ -327,7 +328,11 @@ function buildSummary(result: FormulaResult, requirement: Requirement) {
   return lines.join("\n");
 }
 
-export default function ResultsTab({ result, requirement }: Props) {
+export default function ResultsTab({
+  result,
+  requirement,
+  onSaveFormula
+}: Props) {
   const nutrientRows =
     result?.feasible ? buildNutrientRows(result, requirement) : [];
 
@@ -378,7 +383,11 @@ export default function ResultsTab({ result, requirement }: Props) {
               </div>
             </div>
 
-            <button className="action" type="button" onClick={copySummary}>
+            <button className="action" type="button" onClick={onSaveFormula}>
+              💾 Guardar fórmula
+            </button>
+
+            <button className="action secondary" type="button" onClick={copySummary}>
               Copiar resumen
             </button>
 
