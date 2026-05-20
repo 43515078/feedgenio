@@ -519,7 +519,7 @@ export default function HomePage() {
 
   return (
     <main className="page">
-      <div className="container">
+      <div className="container" style={{ overflowX: "hidden" }}>
         <section className="hero">
           <h1>FeedGenio 🧠🌽</h1>
           <p>Sistema profesional de formulación de raciones por mínimo costo.</p>
@@ -611,7 +611,7 @@ export default function HomePage() {
         )}
 
         {activeTab === "saved" && (
-          <section className="card">
+          <section className="card" style={{ maxWidth: "100%" }}>
             <h2>💾 Fórmulas guardadas</h2>
 
             {savedFormulas.length === 0 ? (
@@ -629,12 +629,21 @@ export default function HomePage() {
                     style={{
                       marginTop: 16,
                       border: "1px solid #ddd",
-                      padding: 14
+                      padding: 14,
+                      maxWidth: "100%",
+                      overflowX: "hidden"
                     }}
                   >
-                    <h3 style={{ marginTop: 0 }}>{formula.name}</h3>
+                    <h3
+                      style={{
+                        marginTop: 0,
+                        wordBreak: "break-word"
+                      }}
+                    >
+                      {formula.name}
+                    </h3>
 
-                    <div className="note">
+                    <div className="note" style={{ wordBreak: "break-word" }}>
                       Perfil: {formula.requirementName}
                       <br />
                       Guardada:{" "}
@@ -676,45 +685,46 @@ export default function HomePage() {
                       <strong>S/ {formula.result.costPerKg.toFixed(3)}</strong>
                     </div>
 
-                    <div style={{ marginTop: 14 }}>
-                      <table
-                        style={{
-                          width: "100%",
-                          tableLayout: "fixed"
-                        }}
-                      >
-                        <thead>
-                          <tr>
-                            <th style={{ width: "58%" }}>Insumo</th>
-                            <th style={{ width: "42%", textAlign: "right" }}>
-                              Cantidad
-                            </th>
-                          </tr>
-                        </thead>
+                    <div
+                      style={{
+                        marginTop: 14,
+                        display: "grid",
+                        gap: 8
+                      }}
+                    >
+                      {formula.result.ingredients.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr auto",
+                            gap: 10,
+                            alignItems: "center",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e5ece7"
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              minWidth: 0,
+                              wordBreak: "break-word"
+                            }}
+                          >
+                            {item.name}
+                          </div>
 
-                        <tbody>
-                          {formula.result.ingredients.map((item) => (
-                            <tr key={item.id}>
-                              <td
-                                style={{
-                                  wordBreak: "break-word"
-                                }}
-                              >
-                                {item.name}
-                              </td>
-
-                              <td
-                                style={{
-                                  textAlign: "right",
-                                  whiteSpace: "nowrap"
-                                }}
-                              >
-                                {formatKg(item.amountKg100 * multiplier)} kg
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              textAlign: "right"
+                            }}
+                          >
+                            {formatKg(item.amountKg100 * multiplier)} kg
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     <button
