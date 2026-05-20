@@ -7,7 +7,7 @@ import {
   type Ingredient,
   type NutrientKey
 } from "@/lib/ingredients";
-import { layerRequirement } from "@/lib/requirements";
+import { defaultRequirement, type Requirement } from "@/lib/requirements";
 import type { FormulaResult } from "@/lib/solver";
 
 import FormulaTab from "@/components/FormulaTab";
@@ -21,7 +21,8 @@ type EditableIngredient = Ingredient & {
 
 type TabType = "formular" | "matrix" | "requirements" | "results";
 
-const STORAGE_KEY = "feedgenio_ingredients_v1";
+const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
+const REQUIREMENT_STORAGE_KEY = "feedgenio_requirement_v1";
 
 const nutrientKeys: NutrientKey[] = [
   "energy",
@@ -60,14 +61,33 @@ function normalizeSavedIngredients(
   }));
 }
 
+function normalizeSavedRequirement(item: Requirement): Requirement {
+  return {
+    name: String(item.name || defaultRequirement.name),
+    energy: Number(item.energy || 0),
+    protein: Number(item.protein || 0),
+    lysine: Number(item.lysine || 0),
+    methionine: Number(item.methionine || 0),
+    metCys: Number(item.metCys || 0),
+    calcium: Number(item.calcium || 0),
+    availablePhosphorus: Number(item.availablePhosphorus || 0),
+    sodium: Number(item.sodium || 0)
+  };
+}
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>("formular");
   const [ingredients, setIngredients] =
     useState<EditableIngredient[]>(getInitialIngredients());
+  const [requirement, setRequirement] =
+    useState<Requirement>(defaultRequirement);
   const [result, setResult] = useState<FormulaResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function calculateFormula(currentIngredients: EditableIngredient[]) {
+  async function calculateFormula(
+    currentIngredients: EditableIngredient[],
+    currentRequirement: Requirement
+  ) {
     setLoading(true);
 
     const activeIngredients = currentIngredients.filter(
@@ -81,7 +101,8 @@ export default function HomePage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          ingredients: activeIngredients
+          ingredients: activeIngredients,
+          requirement: currentRequirement
         })
       });
 
@@ -112,29 +133,55 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    let currentIngredients = getInitialIngredients();
+    let currentRequirement = defaultRequirement;
 
-    if (saved) {
+    const savedIngredients =
+      window.localStorage.getItem(INGREDIENTS_STORAGE_KEY);
+    const savedRequirement =
+      window.localStorage.getItem(REQUIREMENT_STORAGE_KEY);
+
+    if (savedIngredients) {
       try {
-        const parsed = JSON.parse(saved) as EditableIngredient[];
-        const normalized = normalizeSavedIngredients(parsed);
-
-        setIngredients(normalized);
-        calculateFormula(normalized);
-        return;
+        const parsed = JSON.parse(savedIngredients) as EditableIngredient[];
+        currentIngredients = normalizeSavedIngredients(parsed);
       } catch {
-        calculateFormula(getInitialIngredients());
-        return;
+        currentIngredients = getInitialIngredients();
       }
     }
 
-    calculateFormula(getInitialIngredients());
+    if (savedRequirement) {
+      try {
+        const parsed = JSON.parse(savedRequirement) as Requirement;
+        currentRequirement = normalizeSavedRequirement(parsed);
+      } catch {
+        currentRequirement = defaultRequirement;
+      }
+    }
+
+    setIngredients(currentIngredients);
+    setRequirement(currentRequirement);
+    calculateFormula(currentIngredients, currentRequirement);
   }, []);
 
-  function saveAndCalculate(updatedIngredients: EditableIngredient[]) {
+  function saveAndCalculate(
+    updatedIngredients: EditableIngredient[],
+    updatedRequirement: Requirement
+  ) {
     setIngredients(updatedIngredients);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedIngredients));
-    calculateFormula(updatedIngredients);
+    setRequirement(updatedRequirement);
+
+    window.localStorage.setItem(
+      INGREDIENTS_STORAGE_KEY,
+      JSON.stringify(updatedIngredients)
+    );
+
+    window.localStorage.setItem(
+      REQUIREMENT_STORAGE_KEY,
+      JSON.stringify(updatedRequirement)
+    );
+
+    calculateFormula(updatedIngredients, updatedRequirement);
   }
 
   function updateIngredient(
@@ -146,7 +193,7 @@ export default function HomePage() {
       ingredient.id === id ? { ...ingredient, [field]: value } : ingredient
     );
 
-    saveAndCalculate(updatedIngredients);
+    saveAndCalculate(updatedIngredients, requirement);
   }
 
   function updateIngredientName(id: string, name: string) {
@@ -154,7 +201,7 @@ export default function HomePage() {
       ingredient.id === id ? { ...ingredient, name } : ingredient
     );
 
-    saveAndCalculate(updatedIngredients);
+    saveAndCalculate(updatedIngredients, requirement);
   }
 
   function updateNutrient(id: string, nutrient: NutrientKey, value: number) {
@@ -170,7 +217,16 @@ export default function HomePage() {
         : ingredient
     );
 
-    saveAndCalculate(updatedIngredients);
+    saveAndCalculate(updatedIngredients, requirement);
+  }
+
+  function updateRequirement(field: keyof Requirement, value: string | number) {
+    const updatedRequirement: Requirement = {
+      ...requirement,
+      [field]: value
+    };
+
+    saveAndCalculate(ingredients, updatedRequirement);
   }
 
   function toggleIngredient(id: string) {
@@ -180,7 +236,7 @@ export default function HomePage() {
         : ingredient
     );
 
-    saveAndCalculate(updatedIngredients);
+    saveAndCalculate(updatedIngredients, requirement);
   }
 
   function addIngredient() {
@@ -189,7 +245,7 @@ export default function HomePage() {
       active: true
     };
 
-    saveAndCalculate([...ingredients, newIngredient]);
+    saveAndCalculate([...ingredients, newIngredient], requirement);
     setActiveTab("matrix");
   }
 
@@ -198,14 +254,19 @@ export default function HomePage() {
       (ingredient) => ingredient.id !== id
     );
 
-    saveAndCalculate(updatedIngredients);
+    saveAndCalculate(updatedIngredients, requirement);
   }
 
   function resetIngredients() {
     const freshIngredients = getInitialIngredients();
 
-    window.localStorage.removeItem(STORAGE_KEY);
-    saveAndCalculate(freshIngredients);
+    window.localStorage.removeItem(INGREDIENTS_STORAGE_KEY);
+    saveAndCalculate(freshIngredients, requirement);
+  }
+
+  function resetRequirement() {
+    window.localStorage.removeItem(REQUIREMENT_STORAGE_KEY);
+    saveAndCalculate(ingredients, defaultRequirement);
   }
 
   return (
@@ -254,7 +315,7 @@ export default function HomePage() {
             loading={loading}
             onToggle={toggleIngredient}
             onUpdate={updateIngredient}
-            onCalculate={() => calculateFormula(ingredients)}
+            onCalculate={() => calculateFormula(ingredients, requirement)}
             onReset={resetIngredients}
             onAddIngredient={addIngredient}
           />
@@ -272,11 +333,24 @@ export default function HomePage() {
         )}
 
         {activeTab === "requirements" && (
-          <RequirementsTab requirement={layerRequirement} />
+          <>
+            <RequirementsTab
+              requirement={requirement}
+              onUpdateRequirement={updateRequirement}
+            />
+
+            <button
+              className="action secondary"
+              type="button"
+              onClick={resetRequirement}
+            >
+              Reiniciar requerimientos
+            </button>
+          </>
         )}
 
         {activeTab === "results" && (
-          <ResultsTab result={result} requirement={layerRequirement} />
+          <ResultsTab result={result} requirement={requirement} />
         )}
       </div>
     </main>
