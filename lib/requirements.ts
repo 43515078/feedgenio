@@ -10,7 +10,7 @@ export type Requirement = {
   sodium: number;
 };
 
-export const layerRequirement: Requirement = {
+export const defaultRequirement: Requirement = {
   name: "Ponedora en producción",
   energy: 2850,
   protein: 16,
@@ -21,3 +21,50 @@ export const layerRequirement: Requirement = {
   availablePhosphorus: 0.38,
   sodium: 0.16
 };
+
+export const requirementFields: Array<{
+  key: keyof Omit<Requirement, "name">;
+  label: string;
+  step: string;
+}> = [
+  {
+    key: "energy",
+    label: "Energía",
+    step: "1"
+  },
+  {
+    key: "protein",
+    label: "Proteína",
+    step: "0.01"
+  },
+  {
+    key: "lysine",
+    label: "Lisina",
+    step: "0.01"
+  },
+  {
+    key: "methionine",
+    label: "Metionina",
+    step: "0.01"
+  },
+  {
+    key: "metCys",
+    label: "Met + Cist",
+    step: "0.01"
+  },
+  {
+    key: "calcium",
+    label: "Calcio",
+    step: "0.01"
+  },
+  {
+    key: "availablePhosphorus",
+    label: "Fósforo disponible",
+    step: "0.01"
+  },
+  {
+    key: "sodium",
+    label: "Sodio",
+    step: "0.01"
+  }
+];
