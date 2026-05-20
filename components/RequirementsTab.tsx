@@ -1,4 +1,8 @@
-import { requirementFields, type Requirement } from "@/lib/requirements";
+import {
+  baseRequirementProfiles,
+  requirementFields,
+  type Requirement
+} from "@/lib/requirements";
 
 type Props = {
   requirement: Requirement;
@@ -13,6 +17,7 @@ type Props = {
   onDuplicateRequirement: () => void;
   onDeleteRequirement: () => void;
   onResetRequirement: () => void;
+  onLoadBaseRequirement: (profile: Requirement) => void;
 };
 
 export default function RequirementsTab({
@@ -24,7 +29,8 @@ export default function RequirementsTab({
   onCreateRequirement,
   onDuplicateRequirement,
   onDeleteRequirement,
-  onResetRequirement
+  onResetRequirement,
+  onLoadBaseRequirement
 }: Props) {
   return (
     <section className="card">
@@ -95,8 +101,21 @@ export default function RequirementsTab({
         </table>
       </div>
 
+      <h3>📚 Cargar perfil base</h3>
+
+      {baseRequirementProfiles.map((profile) => (
+        <button
+          key={profile.name}
+          className="action secondary"
+          type="button"
+          onClick={() => onLoadBaseRequirement(profile)}
+        >
+          Cargar {profile.name}
+        </button>
+      ))}
+
       <button className="action" type="button" onClick={onCreateRequirement}>
-        Nuevo perfil
+        Nuevo perfil vacío
       </button>
 
       <button
@@ -124,8 +143,8 @@ export default function RequirementsTab({
       </button>
 
       <div className="note" style={{ marginTop: 14 }}>
-        Próximamente aquí podremos cargar perfiles listos: Cobb 500, cerdos,
-        cuyes, ponedoras verano/invierno y fases completas.
+        Los perfiles base son puntos de partida. Luego los afinamos con tus
+        valores reales según especie, fase, clima e insumos disponibles.
       </div>
     </section>
   );
