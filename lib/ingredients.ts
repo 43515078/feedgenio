@@ -4,9 +4,16 @@ export type NutrientKey =
   | "lysine"
   | "methionine"
   | "metCys"
+  | "threonine"
+  | "tryptophan"
+  | "arginine"
+  | "isoleucine"
+  | "valine"
   | "calcium"
   | "availablePhosphorus"
-  | "sodium";
+  | "sodium"
+  | "chlorine"
+  | "linoleicAcid";
 
 export type Ingredient = {
   id: string;
@@ -32,9 +39,16 @@ export function createEmptyIngredient(): Ingredient {
       lysine: 0,
       methionine: 0,
       metCys: 0,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 0,
       availablePhosphorus: 0,
-      sodium: 0
+      sodium: 0,
+      chlorine: 0,
+      linoleicAcid: 0
     }
   };
 }
@@ -45,9 +59,16 @@ export const nutrientLabels: Record<NutrientKey, string> = {
   lysine: "Lis",
   methionine: "Met",
   metCys: "M+C",
+  threonine: "Tre",
+  tryptophan: "Trip",
+  arginine: "Arg",
+  isoleucine: "Iso",
+  valine: "Val",
   calcium: "Ca",
   availablePhosphorus: "P disp",
-  sodium: "Na"
+  sodium: "Na",
+  chlorine: "Cl",
+  linoleicAcid: "Linol"
 };
 
 export const defaultIngredients: Ingredient[] = [
@@ -63,9 +84,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 0.24,
       methionine: 0.17,
       metCys: 0.35,
+      threonine: 0.29,
+      tryptophan: 0.06,
+      arginine: 0.37,
+      isoleucine: 0.28,
+      valine: 0.37,
       calcium: 0.03,
       availablePhosphorus: 0.08,
-      sodium: 0.02
+      sodium: 0.02,
+      chlorine: 0.05,
+      linoleicAcid: 1.9
     }
   },
   {
@@ -80,9 +108,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 2.85,
       methionine: 0.62,
       metCys: 1.35,
+      threonine: 1.78,
+      tryptophan: 0.62,
+      arginine: 3.35,
+      isoleucine: 2.1,
+      valine: 2.25,
       calcium: 0.3,
       availablePhosphorus: 0.29,
-      sodium: 0.02
+      sodium: 0.02,
+      chlorine: 0.05,
+      linoleicAcid: 0.6
     }
   },
   {
@@ -97,9 +132,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 0,
       methionine: 0,
       metCys: 0,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 0,
       availablePhosphorus: 0,
-      sodium: 0
+      sodium: 0,
+      chlorine: 0,
+      linoleicAcid: 50
     }
   },
   {
@@ -114,9 +156,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 0,
       methionine: 0,
       metCys: 0,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 38,
       availablePhosphorus: 0,
-      sodium: 0
+      sodium: 0,
+      chlorine: 0,
+      linoleicAcid: 0
     }
   },
   {
@@ -131,9 +180,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 0,
       methionine: 0,
       metCys: 0,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 23,
       availablePhosphorus: 18,
-      sodium: 0
+      sodium: 0,
+      chlorine: 0,
+      linoleicAcid: 0
     }
   },
   {
@@ -148,9 +204,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 0,
       methionine: 0,
       metCys: 0,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 0,
       availablePhosphorus: 0,
-      sodium: 39
+      sodium: 39,
+      chlorine: 60,
+      linoleicAcid: 0
     }
   },
   {
@@ -165,9 +228,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 0,
       methionine: 99,
       metCys: 99,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 0,
       availablePhosphorus: 0,
-      sodium: 0
+      sodium: 0,
+      chlorine: 0,
+      linoleicAcid: 0
     }
   },
   {
@@ -182,9 +252,16 @@ export const defaultIngredients: Ingredient[] = [
       lysine: 78,
       methionine: 0,
       metCys: 0,
+      threonine: 0,
+      tryptophan: 0,
+      arginine: 0,
+      isoleucine: 0,
+      valine: 0,
       calcium: 0,
       availablePhosphorus: 0,
-      sodium: 0
+      sodium: 0,
+      chlorine: 19,
+      linoleicAcid: 0
     }
   }
 ];
