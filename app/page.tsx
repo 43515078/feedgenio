@@ -138,6 +138,10 @@ function createEmptyFormulaResult(message: string): FormulaResult {
   };
 }
 
+function formatKg(value: number) {
+  return Number(value).toFixed(3);
+}
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>("formular");
   const [ingredients, setIngredients] =
@@ -147,6 +151,9 @@ export default function HomePage() {
   );
   const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
+  const [multiplierDrafts, setMultiplierDrafts] = useState<
+    Record<string, string>
+  >({});
   const [result, setResult] = useState<FormulaResult | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -442,21 +449,72 @@ export default function HomePage() {
   function deleteSavedFormula(id: string) {
     const updated = savedFormulas.filter((item) => item.id !== id);
     saveSavedFormulas(updated);
+
+    setMultiplierDrafts((current) => {
+      const copy = { ...current };
+      delete copy[id];
+      return copy;
+    });
   }
 
-  function updateFormulaMultiplier(id: string, multiplier: number) {
-    const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  function getMultiplierText(formula: SavedFormula) {
+    return multiplierDrafts[formula.id] ?? String(formula.multiplier);
+  }
+
+  function getMultiplierNumber(formula: SavedFormula) {
+    const text = getMultiplierText(formula).replace(",", ".");
+    const value = Number(text);
+
+    if (!Number.isFinite(value) || value <= 0) return 0;
+
+    return value;
+  }
+
+  function updateFormulaMultiplierText(id: string, value: string) {
+    const cleanValue = value.replace(",", ".");
+
+    setMultiplierDrafts((current) => ({
+      ...current,
+      [id]: cleanValue
+    }));
+
+    if (cleanValue === "") return;
+
+    const numericValue = Number(cleanValue);
+
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return;
 
     const updated = savedFormulas.map((item) =>
       item.id === id
         ? {
             ...item,
-            multiplier: safeMultiplier
+            multiplier: numericValue
           }
         : item
     );
 
     saveSavedFormulas(updated);
+  }
+
+  function finishMultiplierEdit(formula: SavedFormula) {
+    const numericValue = getMultiplierNumber(formula);
+    const finalValue = numericValue > 0 ? numericValue : 1;
+
+    const updated = savedFormulas.map((item) =>
+      item.id === formula.id
+        ? {
+            ...item,
+            multiplier: finalValue
+          }
+        : item
+    );
+
+    saveSavedFormulas(updated);
+
+    setMultiplierDrafts((current) => ({
+      ...current,
+      [formula.id]: String(finalValue)
+    }));
   }
 
   return (
@@ -559,104 +617,116 @@ export default function HomePage() {
             {savedFormulas.length === 0 ? (
               <div className="note">No hay fórmulas guardadas todavía.</div>
             ) : (
-              savedFormulas.map((formula) => (
-                <div
-                  key={formula.id}
-                  className="card"
-                  style={{
-                    marginTop: 16,
-                    border: "1px solid #ddd"
-                  }}
-                >
-                  <h3>{formula.name}</h3>
+              savedFormulas.map((formula) => {
+                const multiplier = getMultiplierNumber(formula);
+                const totalKg = 100 * multiplier;
+                const totalCost = formula.result.costPer100Kg * multiplier;
 
-                  <div className="note">
-                    Perfil: {formula.requirementName}
-                    <br />
-                    Guardada:{" "}
-                    {new Date(formula.createdAt).toLocaleDateString()}
-                  </div>
-
-                  <div style={{ marginTop: 10 }}>
-                    <strong>Multiplicador:</strong>
-                  </div>
-
-                  <input
-                    className="price-input"
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    value={formula.multiplier}
-                    onChange={(event) =>
-                      updateFormulaMultiplier(
-                        formula.id,
-                        Number(event.target.value || 1)
-                      )
-                    }
+                return (
+                  <div
+                    key={formula.id}
+                    className="card"
                     style={{
-                      maxWidth: 120,
-                      marginTop: 8
+                      marginTop: 16,
+                      border: "1px solid #ddd",
+                      padding: 14
                     }}
-                  />
+                  >
+                    <h3 style={{ marginTop: 0 }}>{formula.name}</h3>
 
-                  <div className="table-wrap" style={{ marginTop: 14 }}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Ingrediente</th>
-                          <th>Kg por 100 kg</th>
-                          <th>Kg finales</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {formula.result.ingredients.map((item) => (
-                          <tr key={item.id}>
-                            <td>{item.name}</td>
-                            <td>{item.amountKg100.toFixed(3)} kg</td>
-                            <td>
-                              {(item.amountKg100 * formula.multiplier).toFixed(
-                                3
-                              )}{" "}
-                              kg
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="stats" style={{ marginTop: 14 }}>
-                    <div className="stat">
-                      <span>Total mezcla</span>
-                      <strong>{(100 * formula.multiplier).toFixed(0)} kg</strong>
+                    <div className="note">
+                      Perfil: {formula.requirementName}
+                      <br />
+                      Guardada:{" "}
+                      {new Date(formula.createdAt).toLocaleDateString()}
                     </div>
 
-                    <div className="stat">
-                      <span>Costo aprox</span>
-                      <strong>
-                        S/{" "}
-                        {(
-                          formula.result.costPer100Kg * formula.multiplier
-                        ).toFixed(2)}
-                      </strong>
-                    </div>
+                    <label
+                      style={{
+                        display: "block",
+                        marginTop: 12,
+                        fontWeight: 700
+                      }}
+                    >
+                      Multiplicador
+                    </label>
 
-                    <div className="stat">
-                      <span>Costo por kg</span>
+                    <input
+                      className="price-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={getMultiplierText(formula)}
+                      onChange={(event) =>
+                        updateFormulaMultiplierText(formula.id, event.target.value)
+                      }
+                      onBlur={() => finishMultiplierEdit(formula)}
+                      onFocus={(event) => event.currentTarget.select()}
+                      style={{
+                        width: 110,
+                        marginTop: 8
+                      }}
+                    />
+
+                    <div className="note" style={{ marginTop: 10 }}>
+                      Total mezcla: <strong>{formatKg(totalKg)} kg</strong>
+                      <br />
+                      Costo aprox: <strong>S/ {totalCost.toFixed(2)}</strong>
+                      <br />
+                      Costo por kg:{" "}
                       <strong>S/ {formula.result.costPerKg.toFixed(3)}</strong>
                     </div>
-                  </div>
 
-                  <button
-                    className="action secondary"
-                    type="button"
-                    onClick={() => deleteSavedFormula(formula.id)}
-                  >
-                    Eliminar fórmula
-                  </button>
-                </div>
-              ))
+                    <div style={{ marginTop: 14 }}>
+                      <table
+                        style={{
+                          width: "100%",
+                          tableLayout: "fixed"
+                        }}
+                      >
+                        <thead>
+                          <tr>
+                            <th style={{ width: "58%" }}>Insumo</th>
+                            <th style={{ width: "42%", textAlign: "right" }}>
+                              Cantidad
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {formula.result.ingredients.map((item) => (
+                            <tr key={item.id}>
+                              <td
+                                style={{
+                                  wordBreak: "break-word"
+                                }}
+                              >
+                                {item.name}
+                              </td>
+
+                              <td
+                                style={{
+                                  textAlign: "right",
+                                  whiteSpace: "nowrap"
+                                }}
+                              >
+                                {formatKg(item.amountKg100 * multiplier)} kg
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <button
+                      className="action secondary"
+                      type="button"
+                      onClick={() => deleteSavedFormula(formula.id)}
+                    >
+                      Eliminar fórmula
+                    </button>
+                  </div>
+                );
+              })
             )}
           </section>
         )}
