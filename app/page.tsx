@@ -22,11 +22,21 @@ type EditableIngredient = Ingredient & {
   active: boolean;
 };
 
-type TabType = "formular" | "matrix" | "requirements" | "results";
+type SavedFormula = {
+  id: string;
+  name: string;
+  createdAt: string;
+  multiplier: number;
+  requirementName: string;
+  result: FormulaResult;
+};
+
+type TabType = "formular" | "matrix" | "requirements" | "results" | "saved";
 
 const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
 const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
 const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
+const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
 
 const nutrientKeys: NutrientKey[] = [
   "energy",
@@ -136,6 +146,7 @@ export default function HomePage() {
     [defaultRequirement]
   );
   const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
+  const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
   const [result, setResult] = useState<FormulaResult | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -187,6 +198,9 @@ export default function HomePage() {
     const savedIndex = window.localStorage.getItem(
       ACTIVE_REQUIREMENT_INDEX_KEY
     );
+    const savedFormulasStorage = window.localStorage.getItem(
+      SAVED_FORMULAS_STORAGE_KEY
+    );
 
     if (savedIngredients) {
       try {
@@ -208,6 +222,13 @@ export default function HomePage() {
 
     if (!currentRequirements[currentIndex]) {
       currentIndex = 0;
+    }
+
+    if (savedFormulasStorage) {
+      try {
+        const parsed = JSON.parse(savedFormulasStorage) as SavedFormula[];
+        setSavedFormulas(parsed);
+      } catch {}
     }
 
     setIngredients(currentIngredients);
@@ -240,6 +261,14 @@ export default function HomePage() {
     window.localStorage.setItem(ACTIVE_REQUIREMENT_INDEX_KEY, String(safeIndex));
 
     calculateFormula(updatedIngredients, updatedProfiles[safeIndex]);
+  }
+
+  function saveSavedFormulas(updated: SavedFormula[]) {
+    setSavedFormulas(updated);
+    window.localStorage.setItem(
+      SAVED_FORMULAS_STORAGE_KEY,
+      JSON.stringify(updated)
+    );
   }
 
   function updateIngredient(
@@ -382,6 +411,54 @@ export default function HomePage() {
     saveAll(ingredients, [defaultRequirement], 0);
   }
 
+  function saveCurrentFormula() {
+    if (!result?.feasible) {
+      window.alert("No hay fórmula válida para guardar.");
+      return;
+    }
+
+    const formulaName = window.prompt(
+      "Nombre de la fórmula:",
+      `${requirement.name} ${new Date().toLocaleDateString()}`
+    );
+
+    if (!formulaName) return;
+
+    const newFormula: SavedFormula = {
+      id: Date.now().toString(),
+      name: formulaName,
+      createdAt: new Date().toISOString(),
+      multiplier: 1,
+      requirementName: requirement.name,
+      result
+    };
+
+    const updated = [newFormula, ...savedFormulas];
+    saveSavedFormulas(updated);
+    window.alert("Fórmula guardada.");
+    setActiveTab("saved");
+  }
+
+  function deleteSavedFormula(id: string) {
+    const updated = savedFormulas.filter((item) => item.id !== id);
+    saveSavedFormulas(updated);
+  }
+
+  function updateFormulaMultiplier(id: string, multiplier: number) {
+    const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+
+    const updated = savedFormulas.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            multiplier: safeMultiplier
+          }
+        : item
+    );
+
+    saveSavedFormulas(updated);
+  }
+
   return (
     <main className="page">
       <div className="container">
@@ -419,6 +496,13 @@ export default function HomePage() {
             onClick={() => setActiveTab("results")}
           >
             📊 Resultados
+          </button>
+
+          <button
+            className={`tab-button ${activeTab === "saved" ? "active" : ""}`}
+            onClick={() => setActiveTab("saved")}
+          >
+            💾 Guardadas
           </button>
         </section>
 
@@ -461,7 +545,120 @@ export default function HomePage() {
         )}
 
         {activeTab === "results" && (
-          <ResultsTab result={result} requirement={requirement} />
+          <ResultsTab
+            result={result}
+            requirement={requirement}
+            onSaveFormula={saveCurrentFormula}
+          />
+        )}
+
+        {activeTab === "saved" && (
+          <section className="card">
+            <h2>💾 Fórmulas guardadas</h2>
+
+            {savedFormulas.length === 0 ? (
+              <div className="note">No hay fórmulas guardadas todavía.</div>
+            ) : (
+              savedFormulas.map((formula) => (
+                <div
+                  key={formula.id}
+                  className="card"
+                  style={{
+                    marginTop: 16,
+                    border: "1px solid #ddd"
+                  }}
+                >
+                  <h3>{formula.name}</h3>
+
+                  <div className="note">
+                    Perfil: {formula.requirementName}
+                    <br />
+                    Guardada:{" "}
+                    {new Date(formula.createdAt).toLocaleDateString()}
+                  </div>
+
+                  <div style={{ marginTop: 10 }}>
+                    <strong>Multiplicador:</strong>
+                  </div>
+
+                  <input
+                    className="price-input"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={formula.multiplier}
+                    onChange={(event) =>
+                      updateFormulaMultiplier(
+                        formula.id,
+                        Number(event.target.value || 1)
+                      )
+                    }
+                    style={{
+                      maxWidth: 120,
+                      marginTop: 8
+                    }}
+                  />
+
+                  <div className="table-wrap" style={{ marginTop: 14 }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Ingrediente</th>
+                          <th>Kg por 100 kg</th>
+                          <th>Kg finales</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {formula.result.ingredients.map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.name}</td>
+                            <td>{item.amountKg100.toFixed(3)} kg</td>
+                            <td>
+                              {(item.amountKg100 * formula.multiplier).toFixed(
+                                3
+                              )}{" "}
+                              kg
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="stats" style={{ marginTop: 14 }}>
+                    <div className="stat">
+                      <span>Total mezcla</span>
+                      <strong>{(100 * formula.multiplier).toFixed(0)} kg</strong>
+                    </div>
+
+                    <div className="stat">
+                      <span>Costo aprox</span>
+                      <strong>
+                        S/{" "}
+                        {(
+                          formula.result.costPer100Kg * formula.multiplier
+                        ).toFixed(2)}
+                      </strong>
+                    </div>
+
+                    <div className="stat">
+                      <span>Costo por kg</span>
+                      <strong>S/ {formula.result.costPerKg.toFixed(3)}</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    className="action secondary"
+                    type="button"
+                    onClick={() => deleteSavedFormula(formula.id)}
+                  >
+                    Eliminar fórmula
+                  </button>
+                </div>
+              ))
+            )}
+          </section>
         )}
       </div>
     </main>
