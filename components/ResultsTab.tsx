@@ -14,6 +14,11 @@ type NutrientRow = {
   suffix: string;
 };
 
+type Alert = {
+  level: "warning" | "danger" | "info";
+  message: string;
+};
+
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
 }
@@ -39,6 +44,101 @@ function getStatus(obtained: number, required: number) {
     label: "🟢 Cumple",
     className: "good"
   };
+}
+
+function findAmount(result: FormulaResult, keywords: string[]) {
+  const item = result.ingredients.find((ingredient) =>
+    keywords.some((keyword) =>
+      ingredient.name.toLowerCase().includes(keyword.toLowerCase())
+    )
+  );
+
+  return item?.amountKg100 || 0;
+}
+
+function buildFormulaAlerts(result: FormulaResult): Alert[] {
+  if (!result.feasible) return [];
+
+  const alerts: Alert[] = [];
+
+  const oil = findAmount(result, ["aceite"]);
+  const calciumCarbonate = findAmount(result, ["carbonato"]);
+  const soybeanMeal = findAmount(result, ["soya", "soja"]);
+  const corn = findAmount(result, ["maíz", "maiz"]);
+  const lysine = findAmount(result, ["lisina"]);
+  const methionine = findAmount(result, ["metionina"]);
+
+  if (oil > 4) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Aceite mayor a 4%. Puede mejorar energía, pero también afectar consumo, mezcla o estabilidad si no se maneja bien."
+    });
+  }
+
+  if (calciumCarbonate > 11) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Carbonato de calcio mayor a 11%. Revisa si el perfil corresponde a ponedoras o si el calcio objetivo está demasiado alto."
+    });
+  }
+
+  if (soybeanMeal > 30) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Torta de soya mayor a 30%. La fórmula puede quedar cara o con proteína demasiado alta según la especie."
+    });
+  }
+
+  if (corn > 75) {
+    alerts.push({
+      level: "info",
+      message:
+        "Maíz mayor a 75%. Fórmula muy cargada a cereal; revisa aminoácidos y fósforo disponible."
+    });
+  }
+
+  if (corn > 0 && corn < 45) {
+    alerts.push({
+      level: "info",
+      message:
+        "Maíz menor a 45%. Puede ser normal, pero revisa si hay exceso de otros ingredientes energéticos o proteicos."
+    });
+  }
+
+  if (lysine <= 0.001) {
+    alerts.push({
+      level: "info",
+      message:
+        "La fórmula no usa lisina sintética. Puede estar bien, pero revisa si la lisina quedó ajustada o si la soya subió demasiado."
+    });
+  }
+
+  if (methionine <= 0.001) {
+    alerts.push({
+      level: "info",
+      message:
+        "La fórmula no usa metionina sintética. En aves normalmente conviene revisar este punto con cuidado."
+    });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      level: "info",
+      message:
+        "No se detectaron alertas básicas de formulación. Igual revisa la fórmula con criterio técnico antes de producir."
+    });
+  }
+
+  return alerts;
+}
+
+function alertClass(level: Alert["level"]) {
+  if (level === "danger") return "warning";
+  if (level === "warning") return "warning";
+  return "note";
 }
 
 export default function ResultsTab({ result, requirement }: Props) {
@@ -103,6 +203,8 @@ export default function ResultsTab({ result, requirement }: Props) {
       ]
     : [];
 
+  const alerts = result?.feasible ? buildFormulaAlerts(result) : [];
+
   return (
     <>
       <section className="card">
@@ -160,6 +262,22 @@ export default function ResultsTab({ result, requirement }: Props) {
           </>
         )}
       </section>
+
+      {result?.feasible && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>🚨 Diagnóstico de formulación</h2>
+
+          {alerts.map((alert, index) => (
+            <div
+              key={`${alert.message}_${index}`}
+              className={alertClass(alert.level)}
+              style={{ marginTop: index === 0 ? 0 : 10 }}
+            >
+              {alert.message}
+            </div>
+          ))}
+        </section>
+      )}
 
       {result?.feasible && (
         <section className="card" style={{ marginTop: 18 }}>
