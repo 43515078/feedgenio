@@ -1,27 +1,9 @@
-import type { Ingredient } from "./ingredients";
+import type { Ingredient, NutrientKey } from "./ingredients";
 import type { Requirement } from "./requirements";
-
-type NutrientKey =
-  | "energy"
-  | "protein"
-  | "lysine"
-  | "methionine"
-  | "metCys"
-  | "calcium"
-  | "availablePhosphorus"
-  | "sodium";
 
 type SolverVariable = {
   cost: number;
   total: number;
-  energy: number;
-  protein: number;
-  lysine: number;
-  methionine: number;
-  metCys: number;
-  calcium: number;
-  availablePhosphorus: number;
-  sodium: number;
   [key: string]: number;
 };
 
@@ -52,19 +34,28 @@ export type FormulaResult = {
     price: number;
     cost: number;
   }[];
-  nutrients: {
-    energy: number;
-    protein: number;
-    lysine: number;
-    methionine: number;
-    metCys: number;
-    calcium: number;
-    availablePhosphorus: number;
-    sodium: number;
-  };
+  nutrients: Record<NutrientKey, number>;
   message?: string;
   diagnostics?: NutrientDiagnostics[];
 };
+
+const nutrientKeys: NutrientKey[] = [
+  "energy",
+  "protein",
+  "lysine",
+  "methionine",
+  "metCys",
+  "threonine",
+  "tryptophan",
+  "arginine",
+  "isoleucine",
+  "valine",
+  "calcium",
+  "availablePhosphorus",
+  "sodium",
+  "chlorine",
+  "linoleicAcid"
+];
 
 const nutrientLabels: Record<NutrientKey, string> = {
   energy: "Energía",
@@ -72,22 +63,40 @@ const nutrientLabels: Record<NutrientKey, string> = {
   lysine: "Lisina",
   methionine: "Metionina",
   metCys: "Met + Cist",
+  threonine: "Treonina",
+  tryptophan: "Triptófano",
+  arginine: "Arginina",
+  isoleucine: "Isoleucina",
+  valine: "Valina",
   calcium: "Calcio",
   availablePhosphorus: "Fósforo disponible",
-  sodium: "Sodio"
+  sodium: "Sodio",
+  chlorine: "Cloro",
+  linoleicAcid: "Ácido linoleico"
 };
 
-function emptyNutrients() {
+function emptyNutrients(): Record<NutrientKey, number> {
   return {
     energy: 0,
     protein: 0,
     lysine: 0,
     methionine: 0,
     metCys: 0,
+    threonine: 0,
+    tryptophan: 0,
+    arginine: 0,
+    isoleucine: 0,
+    valine: 0,
     calcium: 0,
     availablePhosphorus: 0,
-    sodium: 0
+    sodium: 0,
+    chlorine: 0,
+    linoleicAcid: 0
   };
+}
+
+function getRequirementValue(requirement: Requirement, key: NutrientKey) {
+  return Number(requirement[key] || 0);
 }
 
 function calculateMaxPossibleNutrients(
@@ -98,29 +107,10 @@ function calculateMaxPossibleNutrients(
   for (const ingredient of ingredients) {
     const usableMax = Math.max(0, Number(ingredient.max || 0));
 
-    maxPossible.energy +=
-      (usableMax * ingredient.nutrients.energy) / 100;
-
-    maxPossible.protein +=
-      (usableMax * ingredient.nutrients.protein) / 100;
-
-    maxPossible.lysine +=
-      (usableMax * ingredient.nutrients.lysine) / 100;
-
-    maxPossible.methionine +=
-      (usableMax * ingredient.nutrients.methionine) / 100;
-
-    maxPossible.metCys +=
-      (usableMax * ingredient.nutrients.metCys) / 100;
-
-    maxPossible.calcium +=
-      (usableMax * ingredient.nutrients.calcium) / 100;
-
-    maxPossible.availablePhosphorus +=
-      (usableMax * ingredient.nutrients.availablePhosphorus) / 100;
-
-    maxPossible.sodium +=
-      (usableMax * ingredient.nutrients.sodium) / 100;
+    for (const key of nutrientKeys) {
+      maxPossible[key] +=
+        (usableMax * Number(ingredient.nutrients[key] || 0)) / 100;
+    }
   }
 
   return maxPossible;
@@ -132,19 +122,8 @@ function buildDiagnostics(
 ): NutrientDiagnostics[] {
   const maxPossible = calculateMaxPossibleNutrients(ingredients);
 
-  const nutrientKeys: NutrientKey[] = [
-    "energy",
-    "protein",
-    "lysine",
-    "methionine",
-    "metCys",
-    "calcium",
-    "availablePhosphorus",
-    "sodium"
-  ];
-
   return nutrientKeys.map((key) => {
-    const required = Number(requirement[key] || 0);
+    const required = getRequirementValue(requirement, key);
     const possibleMax = Number(maxPossible[key] || 0);
 
     return {
@@ -243,37 +222,33 @@ export function solveFormula(
     optimize: "cost",
     opType: "min",
     constraints: {
-      total: { equal: 100 },
-      energy: { min: requirement.energy },
-      protein: { min: requirement.protein },
-      lysine: { min: requirement.lysine },
-      methionine: { min: requirement.methionine },
-      metCys: { min: requirement.metCys },
-      calcium: { min: requirement.calcium },
-      availablePhosphorus: { min: requirement.availablePhosphorus },
-      sodium: { min: requirement.sodium }
+      total: { equal: 100 }
     },
     variables: {}
   };
+
+  for (const key of nutrientKeys) {
+    model.constraints[key] = {
+      min: getRequirementValue(requirement, key)
+    };
+  }
 
   for (const ingredient of ingredients) {
     model.constraints[`${ingredient.id}_min`] = { min: ingredient.min };
     model.constraints[`${ingredient.id}_max`] = { max: ingredient.max };
 
-    model.variables[ingredient.id] = {
+    const variable: SolverVariable = {
       cost: ingredient.price,
       total: 1,
-      energy: ingredient.nutrients.energy / 100,
-      protein: ingredient.nutrients.protein / 100,
-      lysine: ingredient.nutrients.lysine / 100,
-      methionine: ingredient.nutrients.methionine / 100,
-      metCys: ingredient.nutrients.metCys / 100,
-      calcium: ingredient.nutrients.calcium / 100,
-      availablePhosphorus: ingredient.nutrients.availablePhosphorus / 100,
-      sodium: ingredient.nutrients.sodium / 100,
       [`${ingredient.id}_min`]: 1,
       [`${ingredient.id}_max`]: 1
     };
+
+    for (const key of nutrientKeys) {
+      variable[key] = Number(ingredient.nutrients[key] || 0) / 100;
+    }
+
+    model.variables[ingredient.id] = variable;
   }
 
   const result = solver.Solve(model);
@@ -314,31 +289,10 @@ export function solveFormula(
     const ingredient = ingredients.find((i) => i.id === item.id);
     if (!ingredient) continue;
 
-    nutrients.energy +=
-      (item.amountKg100 * ingredient.nutrients.energy) / 100;
-
-    nutrients.protein +=
-      (item.amountKg100 * ingredient.nutrients.protein) / 100;
-
-    nutrients.lysine +=
-      (item.amountKg100 * ingredient.nutrients.lysine) / 100;
-
-    nutrients.methionine +=
-      (item.amountKg100 * ingredient.nutrients.methionine) / 100;
-
-    nutrients.metCys +=
-      (item.amountKg100 * ingredient.nutrients.metCys) / 100;
-
-    nutrients.calcium +=
-      (item.amountKg100 * ingredient.nutrients.calcium) / 100;
-
-    nutrients.availablePhosphorus +=
-      (item.amountKg100 *
-        ingredient.nutrients.availablePhosphorus) /
-      100;
-
-    nutrients.sodium +=
-      (item.amountKg100 * ingredient.nutrients.sodium) / 100;
+    for (const key of nutrientKeys) {
+      nutrients[key] +=
+        (item.amountKg100 * Number(ingredient.nutrients[key] || 0)) / 100;
+    }
   }
 
   const costPer100Kg = formulaIngredients.reduce(
