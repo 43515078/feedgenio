@@ -1,10 +1,20 @@
-import type { Requirement } from "@/lib/requirements";
+import {
+  requirementFields,
+  type Requirement
+} from "@/lib/requirements";
 
 type Props = {
   requirement: Requirement;
+  onUpdateRequirement: (
+    field: keyof Requirement,
+    value: string | number
+  ) => void;
 };
 
-export default function RequirementsTab({ requirement }: Props) {
+export default function RequirementsTab({
+  requirement,
+  onUpdateRequirement
+}: Props) {
   return (
     <section className="card">
       <h2>🎯 Requerimientos actuales</h2>
@@ -13,59 +23,68 @@ export default function RequirementsTab({ requirement }: Props) {
         <table>
           <tbody>
             <tr>
-              <td>Energía</td>
-              <td>{requirement.energy} kcal/kg</td>
+              <td>Nombre</td>
+
+              <td>
+                <input
+                  className="price-input"
+                  style={{ width: 240 }}
+                  type="text"
+                  value={requirement.name}
+                  onChange={(event) =>
+                    onUpdateRequirement(
+                      "name",
+                      event.target.value
+                    )
+                  }
+                />
+              </td>
             </tr>
 
-            <tr>
-              <td>Proteína</td>
-              <td>{requirement.protein}%</td>
-            </tr>
+            {requirementFields.map((field) => (
+              <tr key={field.key}>
+                <td>{field.label}</td>
 
-            <tr>
-              <td>Lisina</td>
-              <td>{requirement.lysine}%</td>
-            </tr>
-
-            <tr>
-              <td>Metionina</td>
-              <td>{requirement.methionine}%</td>
-            </tr>
-
-            <tr>
-              <td>Met + Cist</td>
-              <td>{requirement.metCys}%</td>
-            </tr>
-
-            <tr>
-              <td>Calcio</td>
-              <td>{requirement.calcium}%</td>
-            </tr>
-
-            <tr>
-              <td>Fósforo disponible</td>
-              <td>{requirement.availablePhosphorus}%</td>
-            </tr>
-
-            <tr>
-              <td>Sodio</td>
-              <td>{requirement.sodium}%</td>
-            </tr>
+                <td>
+                  <input
+                    className="price-input"
+                    type="number"
+                    step={field.step}
+                    value={requirement[field.key]}
+                    onChange={(event) =>
+                      onUpdateRequirement(
+                        field.key,
+                        Number(
+                          event.target.value || 0
+                        )
+                      )
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
       <div className="note">
-        Más adelante aquí podrás:
+        🔥 Ahora los requerimientos ya son editables.
         <br />
         <br />
-        ✅ Crear fases
+        Próximamente:
         <br />
-        ✅ Duplicar perfiles
         <br />
-        ✅ Manejar Cobb, cerdos, cuyes y ponedoras
+        ✅ Perfiles múltiples
         <br />
-        ✅ Requerimientos verano / invierno
+        ✅ Cobb 500
+        <br />
+        ✅ Cerdos
+        <br />
+        ✅ Cuyes
+        <br />
+        ✅ Verano / invierno
+        <br />
+        ✅ Requerimientos automáticos
       </div>
     </section>
   );
