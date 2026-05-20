@@ -6,11 +6,103 @@ type Props = {
   requirement: Requirement;
 };
 
+type NutrientRow = {
+  label: string;
+  obtained: number;
+  required: number;
+  decimals: number;
+  suffix: string;
+};
+
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
 }
 
+function getStatus(obtained: number, required: number) {
+  const difference = obtained - required;
+
+  if (difference < -0.001) {
+    return {
+      label: "❌ Bajo",
+      className: "bad"
+    };
+  }
+
+  if (difference <= required * 0.03) {
+    return {
+      label: "✅ Ajustado",
+      className: "good"
+    };
+  }
+
+  return {
+    label: "🟢 Cumple",
+    className: "good"
+  };
+}
+
 export default function ResultsTab({ result, requirement }: Props) {
+  const nutrientRows: NutrientRow[] = result?.feasible
+    ? [
+        {
+          label: "Energía",
+          obtained: result.nutrients.energy,
+          required: requirement.energy,
+          decimals: 0,
+          suffix: " kcal/kg"
+        },
+        {
+          label: "Proteína",
+          obtained: result.nutrients.protein,
+          required: requirement.protein,
+          decimals: 2,
+          suffix: "%"
+        },
+        {
+          label: "Lisina",
+          obtained: result.nutrients.lysine,
+          required: requirement.lysine,
+          decimals: 2,
+          suffix: "%"
+        },
+        {
+          label: "Metionina",
+          obtained: result.nutrients.methionine,
+          required: requirement.methionine,
+          decimals: 2,
+          suffix: "%"
+        },
+        {
+          label: "Met + Cist",
+          obtained: result.nutrients.metCys,
+          required: requirement.metCys,
+          decimals: 2,
+          suffix: "%"
+        },
+        {
+          label: "Calcio",
+          obtained: result.nutrients.calcium,
+          required: requirement.calcium,
+          decimals: 2,
+          suffix: "%"
+        },
+        {
+          label: "P disp",
+          obtained: result.nutrients.availablePhosphorus,
+          required: requirement.availablePhosphorus,
+          decimals: 2,
+          suffix: "%"
+        },
+        {
+          label: "Sodio",
+          obtained: result.nutrients.sodium,
+          required: requirement.sodium,
+          decimals: 2,
+          suffix: "%"
+        }
+      ]
+    : [];
+
   return (
     <>
       <section className="card">
@@ -80,59 +172,43 @@ export default function ResultsTab({ result, requirement }: Props) {
                   <th>Nutriente</th>
                   <th>Obtenido</th>
                   <th>Requerido</th>
+                  <th>Diferencia</th>
+                  <th>Estado</th>
                 </tr>
               </thead>
 
               <tbody>
-                <tr>
-                  <td>Energía</td>
-                  <td>{round(result.nutrients.energy, 0)} kcal/kg</td>
-                  <td>{requirement.energy}</td>
-                </tr>
+                {nutrientRows.map((row) => {
+                  const difference = row.obtained - row.required;
+                  const status = getStatus(row.obtained, row.required);
 
-                <tr>
-                  <td>Proteína</td>
-                  <td>{round(result.nutrients.protein)}%</td>
-                  <td>{requirement.protein}%</td>
-                </tr>
-
-                <tr>
-                  <td>Lisina</td>
-                  <td>{round(result.nutrients.lysine)}%</td>
-                  <td>{requirement.lysine}%</td>
-                </tr>
-
-                <tr>
-                  <td>Metionina</td>
-                  <td>{round(result.nutrients.methionine)}%</td>
-                  <td>{requirement.methionine}%</td>
-                </tr>
-
-                <tr>
-                  <td>Met + Cist</td>
-                  <td>{round(result.nutrients.metCys)}%</td>
-                  <td>{requirement.metCys}%</td>
-                </tr>
-
-                <tr>
-                  <td>Calcio</td>
-                  <td>{round(result.nutrients.calcium)}%</td>
-                  <td>{requirement.calcium}%</td>
-                </tr>
-
-                <tr>
-                  <td>P disp</td>
-                  <td>{round(result.nutrients.availablePhosphorus)}%</td>
-                  <td>{requirement.availablePhosphorus}%</td>
-                </tr>
-
-                <tr>
-                  <td>Sodio</td>
-                  <td>{round(result.nutrients.sodium)}%</td>
-                  <td>{requirement.sodium}%</td>
-                </tr>
+                  return (
+                    <tr key={row.label}>
+                      <td>{row.label}</td>
+                      <td>
+                        {round(row.obtained, row.decimals)}
+                        {row.suffix}
+                      </td>
+                      <td>
+                        {round(row.required, row.decimals)}
+                        {row.suffix}
+                      </td>
+                      <td>
+                        {difference >= 0 ? "+" : ""}
+                        {round(difference, row.decimals)}
+                        {row.suffix}
+                      </td>
+                      <td className={status.className}>{status.label}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+
+          <div className="note" style={{ marginTop: 14 }}>
+            ✅ Ajustado significa que el nutriente cumple, pero quedó muy cerca
+            del mínimo. Eso suele ser bueno para costo, pero conviene vigilarlo.
           </div>
         </section>
       )}
