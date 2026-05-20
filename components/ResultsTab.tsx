@@ -56,10 +56,33 @@ function findAmount(result: FormulaResult, keywords: string[]) {
   return item?.amountKg100 || 0;
 }
 
-function buildFormulaAlerts(result: FormulaResult): Alert[] {
+function hasIngredient(result: FormulaResult, keywords: string[]) {
+  return findAmount(result, keywords) > 0.001;
+}
+
+function getProfileFlags(requirementName: string) {
+  const name = requirementName.toLowerCase();
+
+  return {
+    isLayer: name.includes("ponedora"),
+    isBroiler:
+      name.includes("cobb") ||
+      name.includes("broiler") ||
+      name.includes("pollo"),
+    isPig: name.includes("cerdo"),
+    isGuineaPig: name.includes("cuy"),
+    isSummer: name.includes("verano")
+  };
+}
+
+function buildFormulaAlerts(
+  result: FormulaResult,
+  requirement: Requirement
+): Alert[] {
   if (!result.feasible) return [];
 
   const alerts: Alert[] = [];
+  const profile = getProfileFlags(requirement.name);
 
   const oil = findAmount(result, ["aceite"]);
   const calciumCarbonate = findAmount(result, ["carbonato"]);
@@ -67,8 +90,48 @@ function buildFormulaAlerts(result: FormulaResult): Alert[] {
   const corn = findAmount(result, ["maíz", "maiz"]);
   const lysine = findAmount(result, ["lisina"]);
   const methionine = findAmount(result, ["metionina"]);
+  const dcp = findAmount(result, ["fosfato", "dcp", "dicálcico", "dicalcico"]);
+  const salt = findAmount(result, ["sal"]);
 
-  if (oil > 4) {
+  if (profile.isLayer && calciumCarbonate < 6) {
+    alerts.push({
+      level: "danger",
+      message:
+        "Ponedora con carbonato de calcio menor a 6%. Revisa calcio, fase productiva o si falta carbonato en la fórmula."
+    });
+  }
+
+  if (profile.isLayer && calciumCarbonate > 11.5) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Ponedora con carbonato mayor a 11.5%. Puede ser posible, pero revisa calcio total, granulometría y consumo esperado."
+    });
+  }
+
+  if (profile.isBroiler && calciumCarbonate > 2.5) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Perfil de pollo/Cobb con carbonato mayor a 2.5%. Revisa si el calcio requerido está alto o si falta otra fuente mineral."
+    });
+  }
+
+  if (profile.isPig && calciumCarbonate > 2) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Perfil de cerdo con carbonato mayor a 2%. Revisa calcio y fósforo disponible para evitar exceso mineral."
+    });
+  }
+
+  if (profile.isSummer && oil > 4.5) {
+    alerts.push({
+      level: "info",
+      message:
+        "Perfil de verano con aceite alto. Puede ser intencional para subir energía, pero vigila consumo, rancidez y calidad de mezcla."
+    });
+  } else if (oil > 4) {
     alerts.push({
       level: "warning",
       message:
@@ -76,15 +139,23 @@ function buildFormulaAlerts(result: FormulaResult): Alert[] {
     });
   }
 
-  if (calciumCarbonate > 11) {
+  if (soybeanMeal > 32 && profile.isLayer) {
     alerts.push({
       level: "warning",
       message:
-        "Carbonato de calcio mayor a 11%. Revisa si el perfil corresponde a ponedoras o si el calcio objetivo está demasiado alto."
+        "Soya alta para ponedora. Revisa costo, proteína final y si conviene usar aminoácidos sintéticos."
     });
   }
 
-  if (soybeanMeal > 30) {
+  if (soybeanMeal > 35 && profile.isBroiler) {
+    alerts.push({
+      level: "info",
+      message:
+        "Soya alta en pollo/Cobb. Puede ser normal en fases iniciales, pero revisa costo y balance de aminoácidos."
+    });
+  }
+
+  if (soybeanMeal > 30 && !profile.isBroiler) {
     alerts.push({
       level: "warning",
       message:
@@ -100,7 +171,7 @@ function buildFormulaAlerts(result: FormulaResult): Alert[] {
     });
   }
 
-  if (corn > 0 && corn < 45) {
+  if (corn > 0 && corn < 45 && !profile.isGuineaPig) {
     alerts.push({
       level: "info",
       message:
@@ -108,19 +179,47 @@ function buildFormulaAlerts(result: FormulaResult): Alert[] {
     });
   }
 
-  if (lysine <= 0.001) {
+  if (lysine <= 0.001 && (profile.isBroiler || profile.isPig)) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Perfil de pollo o cerdo sin lisina sintética. Puede formular, pero revisa si la soya subió demasiado o si la lisina quedó muy ajustada."
+    });
+  } else if (lysine <= 0.001) {
     alerts.push({
       level: "info",
       message:
-        "La fórmula no usa lisina sintética. Puede estar bien, pero revisa si la lisina quedó ajustada o si la soya subió demasiado."
+        "La fórmula no usa lisina sintética. Puede estar bien, pero revisa lisina y costo de proteína."
     });
   }
 
-  if (methionine <= 0.001) {
+  if (methionine <= 0.001 && (profile.isLayer || profile.isBroiler)) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Perfil de aves sin metionina sintética. Revisa con cuidado porque suele ser un nutriente crítico en aves."
+    });
+  } else if (methionine <= 0.001) {
     alerts.push({
       level: "info",
       message:
-        "La fórmula no usa metionina sintética. En aves normalmente conviene revisar este punto con cuidado."
+        "La fórmula no usa metionina sintética. Puede estar bien según especie, pero revisa metionina y Met+Cist."
+    });
+  }
+
+  if (dcp <= 0.001 && requirement.availablePhosphorus > 0.32) {
+    alerts.push({
+      level: "info",
+      message:
+        "No se está usando fosfato/DCP pese a un requerimiento de fósforo disponible moderado o alto. Revisa matriz de fósforo de los insumos."
+    });
+  }
+
+  if (salt > 0.45) {
+    alerts.push({
+      level: "warning",
+      message:
+        "Sal mayor a 0.45%. Revisa sodio, cloro y el consumo esperado de agua."
     });
   }
 
@@ -139,6 +238,46 @@ function alertClass(level: Alert["level"]) {
   if (level === "danger") return "warning";
   if (level === "warning") return "warning";
   return "note";
+}
+
+function buildSummary(result: FormulaResult, requirement: Requirement) {
+  if (!result.feasible) return "";
+
+  const lines = [
+    `FeedGenio - ${requirement.name}`,
+    "",
+    "Fórmula por 100 kg:"
+  ];
+
+  result.ingredients.forEach((item) => {
+    lines.push(`${item.name}: ${round(item.amountKg100, 3)} kg`);
+  });
+
+  lines.push("");
+  lines.push("Fórmula por saco de 50 kg:");
+
+  result.ingredients.forEach((item) => {
+    lines.push(`${item.name}: ${round(item.amountKg50, 3)} kg`);
+  });
+
+  lines.push("");
+  lines.push(`Costo por kg: S/ ${round(result.costPerKg, 3)}`);
+  lines.push(`Costo por saco 50 kg: S/ ${round(result.costPer50Kg, 2)}`);
+  lines.push(`Costo por 100 kg: S/ ${round(result.costPer100Kg, 2)}`);
+  lines.push("");
+  lines.push("Nutrientes obtenidos:");
+  lines.push(`Energía: ${round(result.nutrients.energy, 0)} kcal/kg`);
+  lines.push(`Proteína: ${round(result.nutrients.protein, 2)}%`);
+  lines.push(`Lisina: ${round(result.nutrients.lysine, 2)}%`);
+  lines.push(`Metionina: ${round(result.nutrients.methionine, 2)}%`);
+  lines.push(`Met + Cist: ${round(result.nutrients.metCys, 2)}%`);
+  lines.push(`Calcio: ${round(result.nutrients.calcium, 2)}%`);
+  lines.push(
+    `Fósforo disponible: ${round(result.nutrients.availablePhosphorus, 2)}%`
+  );
+  lines.push(`Sodio: ${round(result.nutrients.sodium, 2)}%`);
+
+  return lines.join("\n");
 }
 
 export default function ResultsTab({ result, requirement }: Props) {
@@ -203,7 +342,21 @@ export default function ResultsTab({ result, requirement }: Props) {
       ]
     : [];
 
-  const alerts = result?.feasible ? buildFormulaAlerts(result) : [];
+  const alerts =
+    result?.feasible ? buildFormulaAlerts(result, requirement) : [];
+
+  const summary = result?.feasible ? buildSummary(result, requirement) : "";
+
+  async function copySummary() {
+    if (!summary) return;
+
+    try {
+      await navigator.clipboard.writeText(summary);
+      window.alert("Resumen copiado.");
+    } catch {
+      window.alert("No se pudo copiar el resumen.");
+    }
+  }
 
   return (
     <>
@@ -236,7 +389,11 @@ export default function ResultsTab({ result, requirement }: Props) {
               </div>
             </div>
 
-            <div className="table-wrap">
+            <button className="action" type="button" onClick={copySummary}>
+              Copiar resumen
+            </button>
+
+            <div className="table-wrap" style={{ marginTop: 14 }}>
               <table>
                 <thead>
                   <tr>
@@ -276,6 +433,27 @@ export default function ResultsTab({ result, requirement }: Props) {
               {alert.message}
             </div>
           ))}
+        </section>
+      )}
+
+      {result?.feasible && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>📋 Resumen copiable</h2>
+
+          <textarea
+            className="price-input"
+            style={{
+              width: "100%",
+              minHeight: 260,
+              lineHeight: 1.5
+            }}
+            value={summary}
+            readOnly
+          />
+
+          <button className="action" type="button" onClick={copySummary}>
+            Copiar resumen
+          </button>
         </section>
       )}
 
