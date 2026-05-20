@@ -9,10 +9,7 @@ import {
   type NutrientKey
 } from "@/lib/ingredients";
 
-import {
-  defaultRequirement,
-  type Requirement
-} from "@/lib/requirements";
+import { defaultRequirement, type Requirement } from "@/lib/requirements";
 
 import type { FormulaResult } from "@/lib/solver";
 
@@ -37,10 +34,37 @@ const nutrientKeys: NutrientKey[] = [
   "lysine",
   "methionine",
   "metCys",
+  "threonine",
+  "tryptophan",
+  "arginine",
+  "isoleucine",
+  "valine",
   "calcium",
   "availablePhosphorus",
-  "sodium"
+  "sodium",
+  "chlorine",
+  "linoleicAcid"
 ];
+
+function createEmptyNutrients(): Record<NutrientKey, number> {
+  return {
+    energy: 0,
+    protein: 0,
+    lysine: 0,
+    methionine: 0,
+    metCys: 0,
+    threonine: 0,
+    tryptophan: 0,
+    arginine: 0,
+    isoleucine: 0,
+    valine: 0,
+    calcium: 0,
+    availablePhosphorus: 0,
+    sodium: 0,
+    chlorine: 0,
+    linoleicAcid: 0
+  };
+}
 
 function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
@@ -49,26 +73,29 @@ function getInitialIngredients(): EditableIngredient[] {
   }));
 }
 
+function normalizeNutrients(
+  nutrients: Partial<Record<NutrientKey, number>> | undefined
+): Record<NutrientKey, number> {
+  const normalized = createEmptyNutrients();
+
+  for (const key of nutrientKeys) {
+    normalized[key] = Number(nutrients?.[key] || 0);
+  }
+
+  return normalized;
+}
+
 function normalizeSavedIngredients(
   items: EditableIngredient[]
 ): EditableIngredient[] {
   return items.map((item) => ({
     ...item,
     active: typeof item.active === "boolean" ? item.active : true,
-    nutrients: {
-      energy: Number(item.nutrients?.energy || 0),
-      protein: Number(item.nutrients?.protein || 0),
-      lysine: Number(item.nutrients?.lysine || 0),
-      methionine: Number(item.nutrients?.methionine || 0),
-      metCys: Number(item.nutrients?.metCys || 0),
-      calcium: Number(item.nutrients?.calcium || 0),
-      availablePhosphorus: Number(item.nutrients?.availablePhosphorus || 0),
-      sodium: Number(item.nutrients?.sodium || 0)
-    }
+    nutrients: normalizeNutrients(item.nutrients)
   }));
 }
 
-function normalizeRequirement(item: Requirement): Requirement {
+function normalizeRequirement(item: Partial<Requirement>): Requirement {
   return {
     name: String(item.name || defaultRequirement.name),
     energy: Number(item.energy || 0),
@@ -76,9 +103,28 @@ function normalizeRequirement(item: Requirement): Requirement {
     lysine: Number(item.lysine || 0),
     methionine: Number(item.methionine || 0),
     metCys: Number(item.metCys || 0),
+    threonine: Number(item.threonine || 0),
+    tryptophan: Number(item.tryptophan || 0),
+    arginine: Number(item.arginine || 0),
+    isoleucine: Number(item.isoleucine || 0),
+    valine: Number(item.valine || 0),
     calcium: Number(item.calcium || 0),
     availablePhosphorus: Number(item.availablePhosphorus || 0),
-    sodium: Number(item.sodium || 0)
+    sodium: Number(item.sodium || 0),
+    chlorine: Number(item.chlorine || 0),
+    linoleicAcid: Number(item.linoleicAcid || 0)
+  };
+}
+
+function createEmptyFormulaResult(message: string): FormulaResult {
+  return {
+    feasible: false,
+    costPerKg: 0,
+    costPer100Kg: 0,
+    costPer50Kg: 0,
+    ingredients: [],
+    nutrients: createEmptyNutrients(),
+    message
   };
 }
 
@@ -121,24 +167,7 @@ export default function HomePage() {
       const data = (await response.json()) as FormulaResult;
       setResult(data);
     } catch {
-      setResult({
-        feasible: false,
-        costPerKg: 0,
-        costPer100Kg: 0,
-        costPer50Kg: 0,
-        ingredients: [],
-        nutrients: {
-          energy: 0,
-          protein: 0,
-          lysine: 0,
-          methionine: 0,
-          metCys: 0,
-          calcium: 0,
-          availablePhosphorus: 0,
-          sodium: 0
-        },
-        message: "No se pudo conectar con el calculador."
-      });
+      setResult(createEmptyFormulaResult("No se pudo conectar con el calculador."));
     } finally {
       setLoading(false);
     }
@@ -168,7 +197,7 @@ export default function HomePage() {
 
     if (savedRequirements) {
       try {
-        const parsed = JSON.parse(savedRequirements) as Requirement[];
+        const parsed = JSON.parse(savedRequirements) as Partial<Requirement>[];
         currentRequirements = parsed.map(normalizeRequirement);
       } catch {}
     }
@@ -208,10 +237,7 @@ export default function HomePage() {
       JSON.stringify(updatedProfiles)
     );
 
-    window.localStorage.setItem(
-      ACTIVE_REQUIREMENT_INDEX_KEY,
-      String(safeIndex)
-    );
+    window.localStorage.setItem(ACTIVE_REQUIREMENT_INDEX_KEY, String(safeIndex));
 
     calculateFormula(updatedIngredients, updatedProfiles[safeIndex]);
   }
