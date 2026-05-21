@@ -1,8 +1,4 @@
-import {
-  baseRequirementProfiles,
-  requirementFields,
-  type Requirement
-} from "@/lib/requirements";
+import { baseRequirementProfiles, type Requirement } from "@/lib/requirements";
 
 type Props = {
   requirement: Requirement;
@@ -19,6 +15,111 @@ type Props = {
   onResetRequirement: () => void;
   onLoadBaseRequirement: (profile: Requirement) => void;
 };
+
+type RequirementRow = {
+  label: string;
+  minKey: keyof Requirement;
+  maxKey: keyof Requirement;
+  step: string;
+};
+
+const requirementRows: RequirementRow[] = [
+  {
+    label: "Energía",
+    minKey: "energy",
+    maxKey: "energyMax",
+    step: "1"
+  },
+  {
+    label: "Proteína",
+    minKey: "protein",
+    maxKey: "proteinMax",
+    step: "0.01"
+  },
+  {
+    label: "Lisina",
+    minKey: "lysine",
+    maxKey: "lysineMax",
+    step: "0.01"
+  },
+  {
+    label: "Metionina",
+    minKey: "methionine",
+    maxKey: "methionineMax",
+    step: "0.01"
+  },
+  {
+    label: "Met + Cist",
+    minKey: "metCys",
+    maxKey: "metCysMax",
+    step: "0.01"
+  },
+  {
+    label: "Treonina",
+    minKey: "threonine",
+    maxKey: "threonineMax",
+    step: "0.01"
+  },
+  {
+    label: "Triptófano",
+    minKey: "tryptophan",
+    maxKey: "tryptophanMax",
+    step: "0.01"
+  },
+  {
+    label: "Arginina",
+    minKey: "arginine",
+    maxKey: "arginineMax",
+    step: "0.01"
+  },
+  {
+    label: "Isoleucina",
+    minKey: "isoleucine",
+    maxKey: "isoleucineMax",
+    step: "0.01"
+  },
+  {
+    label: "Valina",
+    minKey: "valine",
+    maxKey: "valineMax",
+    step: "0.01"
+  },
+  {
+    label: "Calcio",
+    minKey: "calcium",
+    maxKey: "calciumMax",
+    step: "0.01"
+  },
+  {
+    label: "Fósforo disp",
+    minKey: "availablePhosphorus",
+    maxKey: "availablePhosphorusMax",
+    step: "0.01"
+  },
+  {
+    label: "Sodio",
+    minKey: "sodium",
+    maxKey: "sodiumMax",
+    step: "0.01"
+  },
+  {
+    label: "Cloro",
+    minKey: "chlorine",
+    maxKey: "chlorineMax",
+    step: "0.01"
+  },
+  {
+    label: "Ácido linoleico",
+    minKey: "linoleicAcid",
+    maxKey: "linoleicAcidMax",
+    step: "0.01"
+  }
+];
+
+function getNumberValue(value: Requirement[keyof Requirement]) {
+  if (typeof value === "number") return value;
+  return 0;
+}
 
 export default function RequirementsTab({
   requirement,
@@ -37,7 +138,7 @@ export default function RequirementsTab({
       <h2>🎯 Perfiles de requerimientos</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
-        Crea varios perfiles nutricionales y elige cuál usar para formular.
+        Crea varios perfiles nutricionales y define rangos mínimos y máximos.
       </div>
 
       <div className="table-wrap" style={{ marginBottom: 14 }}>
@@ -77,22 +178,54 @@ export default function RequirementsTab({
                 />
               </td>
             </tr>
+          </tbody>
+        </table>
+      </div>
 
-            {requirementFields.map((field) => (
-              <tr key={field.key}>
-                <td>{field.label}</td>
+      <div className="table-wrap" style={{ marginBottom: 14 }}>
+        <table style={{ minWidth: 0 }}>
+          <thead>
+            <tr>
+              <th>Nutriente</th>
+              <th>Mín</th>
+              <th>Máx</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {requirementRows.map((row) => (
+              <tr key={row.label}>
+                <td>{row.label}</td>
+
                 <td>
                   <input
                     className="price-input"
                     type="number"
-                    step={field.step}
-                    value={requirement[field.key]}
+                    step={row.step}
+                    value={getNumberValue(requirement[row.minKey])}
                     onChange={(event) =>
                       onUpdateRequirement(
-                        field.key,
+                        row.minKey,
                         Number(event.target.value || 0)
                       )
                     }
+                    style={{ width: 95 }}
+                  />
+                </td>
+
+                <td>
+                  <input
+                    className="price-input"
+                    type="number"
+                    step={row.step}
+                    value={getNumberValue(requirement[row.maxKey])}
+                    onChange={(event) =>
+                      onUpdateRequirement(
+                        row.maxKey,
+                        Number(event.target.value || 0)
+                      )
+                    }
+                    style={{ width: 95 }}
                   />
                 </td>
               </tr>
