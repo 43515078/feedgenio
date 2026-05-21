@@ -107,24 +107,92 @@ function normalizeSavedIngredients(
   }));
 }
 
+function numberOrDefault(value: unknown, fallback: number) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
 function normalizeRequirement(item: Partial<Requirement>): Requirement {
   return {
     name: String(item.name || defaultRequirement.name),
-    energy: Number(item.energy || 0),
-    protein: Number(item.protein || 0),
-    lysine: Number(item.lysine || 0),
-    methionine: Number(item.methionine || 0),
-    metCys: Number(item.metCys || 0),
-    threonine: Number(item.threonine || 0),
-    tryptophan: Number(item.tryptophan || 0),
-    arginine: Number(item.arginine || 0),
-    isoleucine: Number(item.isoleucine || 0),
-    valine: Number(item.valine || 0),
-    calcium: Number(item.calcium || 0),
-    availablePhosphorus: Number(item.availablePhosphorus || 0),
-    sodium: Number(item.sodium || 0),
-    chlorine: Number(item.chlorine || 0),
-    linoleicAcid: Number(item.linoleicAcid || 0)
+
+    energy: numberOrDefault(item.energy, defaultRequirement.energy),
+    energyMax: numberOrDefault(item.energyMax, defaultRequirement.energyMax || 0),
+
+    protein: numberOrDefault(item.protein, defaultRequirement.protein),
+    proteinMax: numberOrDefault(item.proteinMax, defaultRequirement.proteinMax || 0),
+
+    lysine: numberOrDefault(item.lysine, defaultRequirement.lysine),
+    lysineMax: numberOrDefault(item.lysineMax, defaultRequirement.lysineMax || 0),
+
+    methionine: numberOrDefault(item.methionine, defaultRequirement.methionine),
+    methionineMax: numberOrDefault(
+      item.methionineMax,
+      defaultRequirement.methionineMax || 0
+    ),
+
+    metCys: numberOrDefault(item.metCys, defaultRequirement.metCys),
+    metCysMax: numberOrDefault(item.metCysMax, defaultRequirement.metCysMax || 0),
+
+    threonine: numberOrDefault(item.threonine, defaultRequirement.threonine),
+    threonineMax: numberOrDefault(
+      item.threonineMax,
+      defaultRequirement.threonineMax || 0
+    ),
+
+    tryptophan: numberOrDefault(item.tryptophan, defaultRequirement.tryptophan),
+    tryptophanMax: numberOrDefault(
+      item.tryptophanMax,
+      defaultRequirement.tryptophanMax || 0
+    ),
+
+    arginine: numberOrDefault(item.arginine, defaultRequirement.arginine),
+    arginineMax: numberOrDefault(
+      item.arginineMax,
+      defaultRequirement.arginineMax || 0
+    ),
+
+    isoleucine: numberOrDefault(item.isoleucine, defaultRequirement.isoleucine),
+    isoleucineMax: numberOrDefault(
+      item.isoleucineMax,
+      defaultRequirement.isoleucineMax || 0
+    ),
+
+    valine: numberOrDefault(item.valine, defaultRequirement.valine),
+    valineMax: numberOrDefault(item.valineMax, defaultRequirement.valineMax || 0),
+
+    calcium: numberOrDefault(item.calcium, defaultRequirement.calcium),
+    calciumMax: numberOrDefault(
+      item.calciumMax,
+      defaultRequirement.calciumMax || 0
+    ),
+
+    availablePhosphorus: numberOrDefault(
+      item.availablePhosphorus,
+      defaultRequirement.availablePhosphorus
+    ),
+    availablePhosphorusMax: numberOrDefault(
+      item.availablePhosphorusMax,
+      defaultRequirement.availablePhosphorusMax || 0
+    ),
+
+    sodium: numberOrDefault(item.sodium, defaultRequirement.sodium),
+    sodiumMax: numberOrDefault(item.sodiumMax, defaultRequirement.sodiumMax || 0),
+
+    chlorine: numberOrDefault(item.chlorine, defaultRequirement.chlorine),
+    chlorineMax: numberOrDefault(
+      item.chlorineMax,
+      defaultRequirement.chlorineMax || 0
+    ),
+
+    linoleicAcid: numberOrDefault(
+      item.linoleicAcid,
+      defaultRequirement.linoleicAcid
+    ),
+    linoleicAcidMax: numberOrDefault(
+      item.linoleicAcidMax,
+      defaultRequirement.linoleicAcidMax || 0
+    )
   };
 }
 
@@ -361,10 +429,7 @@ export default function HomePage() {
   }
 
   function loadBaseRequirement(profile: Requirement) {
-    const newProfile: Requirement = {
-      ...profile,
-      name: `${profile.name}`
-    };
+    const newProfile: Requirement = normalizeRequirement(profile);
 
     const updatedProfiles = [...requirementProfiles, newProfile];
     const newIndex = updatedProfiles.length - 1;
