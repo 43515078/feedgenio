@@ -17,7 +17,9 @@ type SolverModel = {
 type NutrientDiagnostics = {
   label: string;
   required: number;
+  requiredMax?: number;
   possibleMax: number;
+  possibleMin: number;
   difference: number;
 };
 
@@ -99,38 +101,51 @@ function getRequirementValue(requirement: Requirement, key: NutrientKey) {
   return Number(requirement[key] || 0);
 }
 
-function calculateMaxPossibleNutrients(
-  ingredients: Ingredient[]
+function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
+  const maxKey = `${key}Max` as keyof Requirement;
+  const value = Number(requirement[maxKey] || 0);
+
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function calculatePossibleNutrients(
+  ingredients: Ingredient[],
+  limitType: "min" | "max"
 ): Record<NutrientKey, number> {
-  const maxPossible = emptyNutrients();
+  const possible = emptyNutrients();
 
   for (const ingredient of ingredients) {
-    const usableMax = Math.max(0, Number(ingredient.max || 0));
+    const usableAmount = Math.max(0, Number(ingredient[limitType] || 0));
 
     for (const key of nutrientKeys) {
-      maxPossible[key] +=
-        (usableMax * Number(ingredient.nutrients[key] || 0)) / 100;
+      possible[key] +=
+        (usableAmount * Number(ingredient.nutrients[key] || 0)) / 100;
     }
   }
 
-  return maxPossible;
+  return possible;
 }
 
 function buildDiagnostics(
   ingredients: Ingredient[],
   requirement: Requirement
 ): NutrientDiagnostics[] {
-  const maxPossible = calculateMaxPossibleNutrients(ingredients);
+  const possibleMax = calculatePossibleNutrients(ingredients, "max");
+  const possibleMin = calculatePossibleNutrients(ingredients, "min");
 
   return nutrientKeys.map((key) => {
     const required = getRequirementValue(requirement, key);
-    const possibleMax = Number(maxPossible[key] || 0);
+    const requiredMax = getRequirementMaxValue(requirement, key);
+    const maxValue = Number(possibleMax[key] || 0);
+    const minValue = Number(possibleMin[key] || 0);
 
     return {
       label: nutrientLabels[key],
       required,
-      possibleMax,
-      difference: possibleMax - required
+      requiredMax,
+      possibleMax: maxValue,
+      possibleMin: minValue,
+      difference: maxValue - required
     };
   });
 }
@@ -141,8 +156,20 @@ function buildFailureMessage(
 ) {
   const diagnostics = buildDiagnostics(ingredients, requirement);
 
-  const impossibleNutrients = diagnostics.filter(
+  const impossibleMinimums = diagnostics.filter(
     (item) => item.possibleMax + 0.0001 < item.required
+  );
+
+  const impossibleMaximums = diagnostics.filter(
+    (item) =>
+      typeof item.requiredMax === "number" &&
+      item.possibleMin - 0.0001 > item.requiredMax
+  );
+
+  const invertedRanges = diagnostics.filter(
+    (item) =>
+      typeof item.requiredMax === "number" &&
+      item.requiredMax + 0.0001 < item.required
   );
 
   const totalMin = ingredients.reduce(
@@ -175,21 +202,59 @@ function buildFailureMessage(
     );
   }
 
-  if (impossibleNutrients.length > 0) {
-    messages.push("Nutrientes posiblemente imposibles con los máximos actuales:");
+  if (invertedRanges.length > 0) {
+    messages.push("Hay requerimientos con máximo menor que el mínimo:");
 
-    for (const item of impossibleNutrients) {
+    for (const item of invertedRanges) {
       const decimals = item.label === "Energía" ? 0 : 2;
 
       messages.push(
-        `- ${item.label}: requerido ${item.required.toFixed(
+        `- ${item.label}: mínimo ${item.required.toFixed(
+          decimals
+        )}, máximo ${Number(item.requiredMax).toFixed(decimals)}`
+      );
+    }
+  }
+
+  if (impossibleMinimums.length > 0) {
+    messages.push("Nutrientes que no llegan al mínimo con los máximos actuales:");
+
+    for (const item of impossibleMinimums) {
+      const decimals = item.label === "Energía" ? 0 : 2;
+
+      messages.push(
+        `- ${item.label}: mínimo requerido ${item.required.toFixed(
           decimals
         )}, máximo posible aprox. ${item.possibleMax.toFixed(decimals)}`
       );
     }
-  } else {
+  }
+
+  if (impossibleMaximums.length > 0) {
+    messages.push("Nutrientes que ya superan el máximo por los mínimos actuales:");
+
+    for (const item of impossibleMaximums) {
+      const decimals = item.label === "Energía" ? 0 : 2;
+
+      messages.push(
+        `- ${item.label}: máximo permitido ${Number(item.requiredMax).toFixed(
+          decimals
+        )}, mínimo obligado aprox. ${item.possibleMin.toFixed(decimals)}`
+      );
+    }
+  }
+
+  if (
+    impossibleMinimums.length === 0 &&
+    impossibleMaximums.length === 0 &&
+    invertedRanges.length === 0
+  ) {
     messages.push(
-      "Los nutrientes parecen alcanzables por separado, pero la combinación de límites mínimos/máximos puede estar bloqueando la fórmula."
+      "Los nutrientes parecen alcanzables por separado, pero la combinación de mínimos, máximos y límites de ingredientes está bloqueando la fórmula."
+    );
+
+    messages.push(
+      "Revisa ingredientes que están con máximo bajo, especialmente energía, proteína, calcio, fósforo, sodio, cloro y aceite/soya/maíz."
     );
   }
 
@@ -228,9 +293,16 @@ export function solveFormula(
   };
 
   for (const key of nutrientKeys) {
+    const minValue = getRequirementValue(requirement, key);
+    const maxValue = getRequirementMaxValue(requirement, key);
+
     model.constraints[key] = {
-      min: getRequirementValue(requirement, key)
+      min: minValue
     };
+
+    if (typeof maxValue === "number") {
+      model.constraints[key].max = maxValue;
+    }
   }
 
   for (const ingredient of ingredients) {
