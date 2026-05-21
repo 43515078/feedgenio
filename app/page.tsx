@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   createEmptyIngredient,
@@ -29,6 +29,8 @@ type SavedFormula = {
   multiplier: number;
   requirementName: string;
   result: FormulaResult;
+  ingredientsSnapshot?: EditableIngredient[];
+  requirementSnapshot?: Requirement;
 };
 
 type TabType = "formular" | "matrix" | "requirements" | "results" | "saved";
@@ -151,6 +153,7 @@ export default function HomePage() {
   );
   const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
+  const [savedSearch, setSavedSearch] = useState("");
   const [multiplierDrafts, setMultiplierDrafts] = useState<
     Record<string, string>
   >({});
@@ -159,6 +162,19 @@ export default function HomePage() {
 
   const requirement =
     requirementProfiles[activeRequirementIndex] || defaultRequirement;
+
+  const filteredSavedFormulas = useMemo(() => {
+    const query = savedSearch.trim().toLowerCase();
+
+    if (!query) return savedFormulas;
+
+    return savedFormulas.filter((formula) => {
+      return (
+        formula.name.toLowerCase().includes(query) ||
+        formula.requirementName.toLowerCase().includes(query)
+      );
+    });
+  }, [savedFormulas, savedSearch]);
 
   async function calculateFormula(
     currentIngredients: EditableIngredient[],
@@ -196,15 +212,9 @@ export default function HomePage() {
     let currentRequirements = [defaultRequirement];
     let currentIndex = 0;
 
-    const savedIngredients = window.localStorage.getItem(
-      INGREDIENTS_STORAGE_KEY
-    );
-    const savedRequirements = window.localStorage.getItem(
-      REQUIREMENTS_STORAGE_KEY
-    );
-    const savedIndex = window.localStorage.getItem(
-      ACTIVE_REQUIREMENT_INDEX_KEY
-    );
+    const savedIngredients = window.localStorage.getItem(INGREDIENTS_STORAGE_KEY);
+    const savedRequirements = window.localStorage.getItem(REQUIREMENTS_STORAGE_KEY);
+    const savedIndex = window.localStorage.getItem(ACTIVE_REQUIREMENT_INDEX_KEY);
     const savedFormulasStorage = window.localStorage.getItem(
       SAVED_FORMULAS_STORAGE_KEY
     );
@@ -437,7 +447,9 @@ export default function HomePage() {
       createdAt: new Date().toISOString(),
       multiplier: 1,
       requirementName: requirement.name,
-      result
+      result,
+      ingredientsSnapshot: ingredients,
+      requirementSnapshot: requirement
     };
 
     const updated = [newFormula, ...savedFormulas];
@@ -455,6 +467,55 @@ export default function HomePage() {
       delete copy[id];
       return copy;
     });
+  }
+
+  function renameSavedFormula(formula: SavedFormula) {
+    const newName = window.prompt("Nuevo nombre:", formula.name);
+
+    if (!newName) return;
+
+    const updated = savedFormulas.map((item) =>
+      item.id === formula.id ? { ...item, name: newName } : item
+    );
+
+    saveSavedFormulas(updated);
+  }
+
+  function duplicateSavedFormula(formula: SavedFormula) {
+    const copy: SavedFormula = {
+      ...formula,
+      id: Date.now().toString(),
+      name: `${formula.name} copia`,
+      createdAt: new Date().toISOString()
+    };
+
+    saveSavedFormulas([copy, ...savedFormulas]);
+  }
+
+  function loadSavedFormulaToEditor(formula: SavedFormula) {
+    if (!formula.ingredientsSnapshot || !formula.requirementSnapshot) {
+      window.alert(
+        "Esta fórmula fue guardada antes de activar la carga al editor. Vuelve a guardarla desde Resultados para poder cargarla."
+      );
+      return;
+    }
+
+    const loadedIngredients = normalizeSavedIngredients(
+      formula.ingredientsSnapshot
+    );
+
+    const loadedRequirement: Requirement = {
+      ...normalizeRequirement(formula.requirementSnapshot),
+      name: `${formula.requirementSnapshot.name} cargada`
+    };
+
+    const updatedProfiles = [...requirementProfiles, loadedRequirement];
+    const newIndex = updatedProfiles.length - 1;
+
+    saveAll(loadedIngredients, updatedProfiles, newIndex);
+
+    window.alert("Fórmula cargada al editor.");
+    setActiveTab("formular");
   }
 
   function getMultiplierText(formula: SavedFormula) {
@@ -515,6 +576,39 @@ export default function HomePage() {
       ...current,
       [formula.id]: String(finalValue)
     }));
+  }
+
+  function buildSavedFormulaText(formula: SavedFormula) {
+    const multiplier = getMultiplierNumber(formula);
+    const totalKg = 100 * multiplier;
+    const totalCost = formula.result.costPer100Kg * multiplier;
+
+    const lines = [
+      `FeedGenio - ${formula.name}`,
+      `Perfil: ${formula.requirementName}`,
+      `Total mezcla: ${formatKg(totalKg)} kg`,
+      `Costo aprox: S/ ${totalCost.toFixed(2)}`,
+      `Costo por kg: S/ ${formula.result.costPerKg.toFixed(3)}`,
+      "",
+      "Ingredientes:"
+    ];
+
+    formula.result.ingredients.forEach((item) => {
+      lines.push(`${item.name}: ${formatKg(item.amountKg100 * multiplier)} kg`);
+    });
+
+    return lines.join("\n");
+  }
+
+  async function copySavedFormula(formula: SavedFormula) {
+    const text = buildSavedFormulaText(formula);
+
+    try {
+      await navigator.clipboard.writeText(text);
+      window.alert("Fórmula copiada.");
+    } catch {
+      window.alert("No se pudo copiar la fórmula.");
+    }
   }
 
   return (
@@ -614,13 +708,28 @@ export default function HomePage() {
           <section className="card" style={{ maxWidth: "100%" }}>
             <h2>💾 Fórmulas guardadas</h2>
 
-            {savedFormulas.length === 0 ? (
-              <div className="note">No hay fórmulas guardadas todavía.</div>
+            <input
+              className="price-input"
+              type="text"
+              placeholder="Buscar fórmula..."
+              value={savedSearch}
+              onChange={(event) => setSavedSearch(event.target.value)}
+              style={{
+                width: "100%",
+                marginBottom: 14
+              }}
+            />
+
+            {filteredSavedFormulas.length === 0 ? (
+              <div className="note">No hay fórmulas guardadas para mostrar.</div>
             ) : (
-              savedFormulas.map((formula) => {
+              filteredSavedFormulas.map((formula) => {
                 const multiplier = getMultiplierNumber(formula);
                 const totalKg = 100 * multiplier;
                 const totalCost = formula.result.costPer100Kg * multiplier;
+                const canLoadToEditor =
+                  Boolean(formula.ingredientsSnapshot) &&
+                  Boolean(formula.requirementSnapshot);
 
                 return (
                   <div
@@ -648,6 +757,12 @@ export default function HomePage() {
                       <br />
                       Guardada:{" "}
                       {new Date(formula.createdAt).toLocaleDateString()}
+                      {!canLoadToEditor && (
+                        <>
+                          <br />
+                          ⚠️ Fórmula antigua: no tiene copia editable.
+                        </>
+                      )}
                     </div>
 
                     <label
@@ -726,6 +841,38 @@ export default function HomePage() {
                         </div>
                       ))}
                     </div>
+
+                    <button
+                      className="action"
+                      type="button"
+                      onClick={() => copySavedFormula(formula)}
+                    >
+                      📋 Copiar fórmula multiplicada
+                    </button>
+
+                    <button
+                      className="action secondary"
+                      type="button"
+                      onClick={() => loadSavedFormulaToEditor(formula)}
+                    >
+                      🔁 Cargar al editor
+                    </button>
+
+                    <button
+                      className="action secondary"
+                      type="button"
+                      onClick={() => renameSavedFormula(formula)}
+                    >
+                      ✏️ Cambiar nombre
+                    </button>
+
+                    <button
+                      className="action secondary"
+                      type="button"
+                      onClick={() => duplicateSavedFormula(formula)}
+                    >
+                      📄 Duplicar fórmula
+                    </button>
 
                     <button
                       className="action secondary"
