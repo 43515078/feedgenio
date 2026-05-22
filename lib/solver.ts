@@ -108,6 +108,26 @@ function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
+function calculateFormulaNutrients(
+  result: Record<string, number | boolean>,
+  ingredients: Ingredient[]
+): Record<NutrientKey, number> {
+  const nutrients = emptyNutrients();
+
+  for (const ingredient of ingredients) {
+    const amountKg100 = Number(result[ingredient.id] || 0);
+
+    if (amountKg100 <= 0) continue;
+
+    for (const key of nutrientKeys) {
+      nutrients[key] +=
+        (amountKg100 * Number(ingredient.nutrients[key] || 0)) / 100;
+    }
+  }
+
+  return nutrients;
+}
+
 function calculatePossibleNutrients(
   ingredients: Ingredient[],
   limitType: "min" | "max"
@@ -150,11 +170,150 @@ function buildDiagnostics(
   });
 }
 
+function createModel(
+  ingredients: Ingredient[],
+  requirement: Requirement,
+  options?: {
+    skipMinNutrient?: NutrientKey;
+    skipMaxNutrient?: NutrientKey;
+  }
+): SolverModel {
+  const model: SolverModel = {
+    optimize: "cost",
+    opType: "min",
+    constraints: {
+      total: { equal: 100 }
+    },
+    variables: {}
+  };
+
+  for (const key of nutrientKeys) {
+    const minValue = getRequirementValue(requirement, key);
+    const maxValue = getRequirementMaxValue(requirement, key);
+
+    model.constraints[key] = {};
+
+    if (options?.skipMinNutrient !== key) {
+      model.constraints[key].min = minValue;
+    }
+
+    if (typeof maxValue === "number" && options?.skipMaxNutrient !== key) {
+      model.constraints[key].max = maxValue;
+    }
+  }
+
+  for (const ingredient of ingredients) {
+    model.constraints[`${ingredient.id}_min`] = { min: ingredient.min };
+    model.constraints[`${ingredient.id}_max`] = { max: ingredient.max };
+
+    const variable: SolverVariable = {
+      cost: ingredient.price,
+      total: 1,
+      [`${ingredient.id}_min`]: 1,
+      [`${ingredient.id}_max`]: 1
+    };
+
+    for (const key of nutrientKeys) {
+      variable[key] = Number(ingredient.nutrients[key] || 0) / 100;
+    }
+
+    model.variables[ingredient.id] = variable;
+  }
+
+  return model;
+}
+
+function runSolver(
+  ingredients: Ingredient[],
+  requirement: Requirement,
+  options?: {
+    skipMinNutrient?: NutrientKey;
+    skipMaxNutrient?: NutrientKey;
+  }
+) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const solver = require("javascript-lp-solver");
+
+  const model = createModel(ingredients, requirement, options);
+  return solver.Solve(model);
+}
+
+function buildExactRestrictionDiagnosis(
+  ingredients: Ingredient[],
+  requirement: Requirement
+): string[] {
+  const messages: string[] = [];
+
+  for (const key of nutrientKeys) {
+    const testResult = runSolver(ingredients, requirement, {
+      skipMinNutrient: key
+    });
+
+    if (testResult.feasible) {
+      const nutrients = calculateFormulaNutrients(testResult, ingredients);
+      const obtained = nutrients[key];
+      const required = getRequirementValue(requirement, key);
+      const decimals = key === "energy" ? 0 : 2;
+
+      if (obtained + 0.0001 < required) {
+        messages.push(
+          `- ${nutrientLabels[key]} mínimo: requiere ${required.toFixed(
+            decimals
+          )}, pero al quitar esa restricción la mejor solución queda en ${obtained.toFixed(
+            decimals
+          )}. Falta ${Math.abs(required - obtained).toFixed(decimals)}.`
+        );
+      } else {
+        messages.push(
+          `- ${nutrientLabels[key]} mínimo: al quitar esta restricción sí aparece solución. Revisa este mínimo junto con los límites de ingredientes.`
+        );
+      }
+    }
+  }
+
+  for (const key of nutrientKeys) {
+    const maxValue = getRequirementMaxValue(requirement, key);
+
+    if (typeof maxValue !== "number") continue;
+
+    const testResult = runSolver(ingredients, requirement, {
+      skipMaxNutrient: key
+    });
+
+    if (testResult.feasible) {
+      const nutrients = calculateFormulaNutrients(testResult, ingredients);
+      const obtained = nutrients[key];
+      const decimals = key === "energy" ? 0 : 2;
+
+      if (obtained - 0.0001 > maxValue) {
+        messages.push(
+          `- ${nutrientLabels[key]} máximo: permite ${maxValue.toFixed(
+            decimals
+          )}, pero al quitar ese techo la solución queda en ${obtained.toFixed(
+            decimals
+          )}. Exceso ${Math.abs(obtained - maxValue).toFixed(decimals)}.`
+        );
+      } else {
+        messages.push(
+          `- ${nutrientLabels[key]} máximo: al quitar este máximo sí aparece solución. Revisa este techo con los demás nutrientes.`
+        );
+      }
+    }
+  }
+
+  return messages;
+}
+
 function buildFailureMessage(
   ingredients: Ingredient[],
   requirement: Requirement
 ) {
   const diagnostics = buildDiagnostics(ingredients, requirement);
+
+  const exactRestrictions = buildExactRestrictionDiagnosis(
+    ingredients,
+    requirement
+  );
 
   const impossibleMinimums = diagnostics.filter(
     (item) => item.possibleMax + 0.0001 < item.required
@@ -244,17 +403,26 @@ function buildFailureMessage(
     }
   }
 
+  if (exactRestrictions.length > 0) {
+    messages.push("Restricción exacta que desbloquea el solver:");
+
+    for (const item of exactRestrictions) {
+      messages.push(item);
+    }
+  }
+
   if (
     impossibleMinimums.length === 0 &&
     impossibleMaximums.length === 0 &&
-    invertedRanges.length === 0
+    invertedRanges.length === 0 &&
+    exactRestrictions.length === 0
   ) {
     messages.push(
-      "Los nutrientes parecen alcanzables por separado, pero la combinación de mínimos, máximos y límites de ingredientes está bloqueando la fórmula."
+      "No se encontró una única restricción que destrabe la fórmula. El bloqueo viene de una combinación de dos o más restricciones al mismo tiempo."
     );
 
     messages.push(
-      "Revisa ingredientes que están con máximo bajo, especialmente energía, proteína, calcio, fósforo, sodio, cloro y aceite/soya/maíz."
+      "Prueba ampliar ligeramente máximos de proteína, energía, calcio, fósforo, sodio/cloro o subir máximos de ingredientes clave como soya, maíz, aceite, carbonato o DCP."
     );
   }
 
@@ -268,9 +436,6 @@ export function solveFormula(
   ingredients: Ingredient[],
   requirement: Requirement
 ): FormulaResult {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const solver = require("javascript-lp-solver");
-
   if (ingredients.length === 0) {
     return {
       feasible: false,
@@ -283,47 +448,7 @@ export function solveFormula(
     };
   }
 
-  const model: SolverModel = {
-    optimize: "cost",
-    opType: "min",
-    constraints: {
-      total: { equal: 100 }
-    },
-    variables: {}
-  };
-
-  for (const key of nutrientKeys) {
-    const minValue = getRequirementValue(requirement, key);
-    const maxValue = getRequirementMaxValue(requirement, key);
-
-    model.constraints[key] = {
-      min: minValue
-    };
-
-    if (typeof maxValue === "number") {
-      model.constraints[key].max = maxValue;
-    }
-  }
-
-  for (const ingredient of ingredients) {
-    model.constraints[`${ingredient.id}_min`] = { min: ingredient.min };
-    model.constraints[`${ingredient.id}_max`] = { max: ingredient.max };
-
-    const variable: SolverVariable = {
-      cost: ingredient.price,
-      total: 1,
-      [`${ingredient.id}_min`]: 1,
-      [`${ingredient.id}_max`]: 1
-    };
-
-    for (const key of nutrientKeys) {
-      variable[key] = Number(ingredient.nutrients[key] || 0) / 100;
-    }
-
-    model.variables[ingredient.id] = variable;
-  }
-
-  const result = solver.Solve(model);
+  const result = runSolver(ingredients, requirement);
 
   if (!result.feasible) {
     const failure = buildFailureMessage(ingredients, requirement);
