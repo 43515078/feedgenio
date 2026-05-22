@@ -13,7 +13,8 @@ type NutrientRow = {
   key: NutrientKey;
   label: string;
   obtained: number;
-  required: number;
+  min: number;
+  max?: number;
   decimals: number;
   suffix: string;
 };
@@ -55,25 +56,54 @@ function nutrientDecimals(key: NutrientKey) {
   return 2;
 }
 
-function getStatus(obtained: number, required: number) {
-  const difference = obtained - required;
+function getMaxValue(requirement: Requirement, key: NutrientKey) {
+  const maxKey = `${key}Max` as keyof Requirement;
+  const value = Number(requirement[maxKey] || 0);
 
-  if (difference < -0.001) {
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+
+  return value;
+}
+
+function getStatus(row: NutrientRow) {
+  const minDifference = row.obtained - row.min;
+  const maxDifference =
+    typeof row.max === "number" ? row.max - row.obtained : undefined;
+
+  if (minDifference < -0.001) {
     return {
       label: "❌ Bajo",
       className: "bad"
     };
   }
 
-  if (difference <= required * 0.03) {
+  if (typeof row.max === "number" && row.obtained - row.max > 0.001) {
     return {
-      label: "✅ Ajustado",
+      label: "🔴 Pasado",
+      className: "bad"
+    };
+  }
+
+  if (minDifference <= row.min * 0.03) {
+    return {
+      label: "✅ Cerca mín",
       className: "good"
     };
   }
 
+  if (
+    typeof maxDifference === "number" &&
+    maxDifference >= 0 &&
+    maxDifference <= row.max * 0.03
+  ) {
+    return {
+      label: "🟠 Cerca máx",
+      className: "bad"
+    };
+  }
+
   return {
-    label: "🟢 Cumple",
+    label: "🟢 Correcto",
     className: "good"
   };
 }
@@ -103,9 +133,25 @@ function getProfileFlags(requirementName: string) {
   };
 }
 
-function buildFormulaAlerts(
+function buildNutrientRows(
   result: FormulaResult,
   requirement: Requirement
+): NutrientRow[] {
+  return nutrientKeys.map((key) => ({
+    key,
+    label: nutrientLabels[key],
+    obtained: Number(result.nutrients[key] || 0),
+    min: Number(requirement[key] || 0),
+    max: getMaxValue(requirement, key),
+    decimals: nutrientDecimals(key),
+    suffix: nutrientSuffix(key)
+  }));
+}
+
+function buildFormulaAlerts(
+  result: FormulaResult,
+  requirement: Requirement,
+  nutrientRows: NutrientRow[]
 ): Alert[] {
   if (!result.feasible) return [];
 
@@ -120,6 +166,28 @@ function buildFormulaAlerts(
   const methionine = findAmount(result, ["metionina"]);
   const dcp = findAmount(result, ["fosfato", "dcp", "dicálcico", "dicalcico"]);
   const salt = findAmount(result, ["sal"]);
+
+  nutrientRows.forEach((row) => {
+    if (row.obtained < row.min - 0.001) {
+      alerts.push({
+        level: "danger",
+        message: `${row.label} está por debajo del mínimo: obtenido ${round(
+          row.obtained,
+          row.decimals
+        )}${row.suffix}, mínimo ${round(row.min, row.decimals)}${row.suffix}.`
+      });
+    }
+
+    if (typeof row.max === "number" && row.obtained > row.max + 0.001) {
+      alerts.push({
+        level: "danger",
+        message: `${row.label} supera el máximo: obtenido ${round(
+          row.obtained,
+          row.decimals
+        )}${row.suffix}, máximo ${round(row.max, row.decimals)}${row.suffix}.`
+      });
+    }
+  });
 
   if (profile.isLayer && calciumCarbonate < 6) {
     alerts.push({
@@ -211,7 +279,7 @@ function buildFormulaAlerts(
     alerts.push({
       level: "warning",
       message:
-        "Perfil de pollo o cerdo sin lisina sintética. Puede formular, pero revisa si la soya subió demasiado o si la lisina quedó muy ajustada."
+        "Perfil de pollo o cerdo sin lisina sintética. Revisa si la soya subió demasiado o si la lisina quedó muy ajustada."
     });
   } else if (lysine <= 0.001) {
     alerts.push({
@@ -227,19 +295,13 @@ function buildFormulaAlerts(
       message:
         "Perfil de aves sin metionina sintética. Revisa con cuidado porque suele ser un nutriente crítico en aves."
     });
-  } else if (methionine <= 0.001) {
-    alerts.push({
-      level: "info",
-      message:
-        "La fórmula no usa metionina sintética. Puede estar bien según especie, pero revisa metionina y Met+Cist."
-    });
   }
 
   if (dcp <= 0.001 && requirement.availablePhosphorus > 0.32) {
     alerts.push({
       level: "info",
       message:
-        "No se está usando fosfato/DCP pese a un requerimiento de fósforo disponible moderado o alto. Revisa matriz de fósforo de los insumos."
+        "No se está usando fosfato/DCP pese a un requerimiento de fósforo disponible moderado o alto."
     });
   }
 
@@ -248,14 +310,6 @@ function buildFormulaAlerts(
       level: "warning",
       message:
         "Sal mayor a 0.45%. Revisa sodio, cloro y el consumo esperado de agua."
-    });
-  }
-
-  if (result.nutrients.linoleicAcid < requirement.linoleicAcid) {
-    alerts.push({
-      level: "warning",
-      message:
-        "Ácido linoleico por debajo del requerimiento. En ponedoras puede afectar tamaño de huevo o desempeño según etapa."
     });
   }
 
@@ -274,20 +328,6 @@ function alertClass(level: Alert["level"]) {
   if (level === "danger") return "warning";
   if (level === "warning") return "warning";
   return "note";
-}
-
-function buildNutrientRows(
-  result: FormulaResult,
-  requirement: Requirement
-): NutrientRow[] {
-  return nutrientKeys.map((key) => ({
-    key,
-    label: nutrientLabels[key],
-    obtained: Number(result.nutrients[key] || 0),
-    required: Number(requirement[key] || 0),
-    decimals: nutrientDecimals(key),
-    suffix: nutrientSuffix(key)
-  }));
 }
 
 function buildSummary(result: FormulaResult, requirement: Requirement) {
@@ -320,8 +360,16 @@ function buildSummary(result: FormulaResult, requirement: Requirement) {
   lines.push("Nutrientes obtenidos:");
 
   nutrientRows.forEach((row) => {
+    const maxText =
+      typeof row.max === "number"
+        ? ` / máx ${round(row.max, row.decimals)}${row.suffix}`
+        : "";
+
     lines.push(
-      `${row.label}: ${round(row.obtained, row.decimals)}${row.suffix}`
+      `${row.label}: ${round(row.obtained, row.decimals)}${row.suffix} | mín ${round(
+        row.min,
+        row.decimals
+      )}${row.suffix}${maxText}`
     );
   });
 
@@ -337,7 +385,7 @@ export default function ResultsTab({
     result?.feasible ? buildNutrientRows(result, requirement) : [];
 
   const alerts =
-    result?.feasible ? buildFormulaAlerts(result, requirement) : [];
+    result?.feasible ? buildFormulaAlerts(result, requirement, nutrientRows) : [];
 
   const summary = result?.feasible ? buildSummary(result, requirement) : "";
 
@@ -362,7 +410,7 @@ export default function ResultsTab({
         ) : !result.feasible ? (
           <div className="warning">
             <strong>No se pudo formular.</strong>
-            <p>{result.message}</p>
+            <p style={{ whiteSpace: "pre-line" }}>{result.message}</p>
           </div>
         ) : (
           <>
@@ -436,6 +484,59 @@ export default function ResultsTab({
 
       {result?.feasible && (
         <section className="card" style={{ marginTop: 18 }}>
+          <h2>🧪 Análisis visual de nutrientes</h2>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nutriente</th>
+                  <th>Mín</th>
+                  <th>Obtenido</th>
+                  <th>Máx</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {nutrientRows.map((row) => {
+                  const status = getStatus(row);
+
+                  return (
+                    <tr key={row.key}>
+                      <td>{row.label}</td>
+                      <td>
+                        {round(row.min, row.decimals)}
+                        {row.suffix}
+                      </td>
+                      <td>
+                        <strong>
+                          {round(row.obtained, row.decimals)}
+                          {row.suffix}
+                        </strong>
+                      </td>
+                      <td>
+                        {typeof row.max === "number"
+                          ? `${round(row.max, row.decimals)}${row.suffix}`
+                          : "Sin máx"}
+                      </td>
+                      <td className={status.className}>{status.label}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="note" style={{ marginTop: 14 }}>
+            ✅ Cerca mín = cumple, pero está muy pegado al mínimo. 🟠 Cerca máx =
+            cumple, pero está pegado al techo. 🔴 Pasado = supera el máximo.
+          </div>
+        </section>
+      )}
+
+      {result?.feasible && (
+        <section className="card" style={{ marginTop: 18 }}>
           <h2>📋 Resumen copiable</h2>
 
           <textarea
@@ -452,58 +553,6 @@ export default function ResultsTab({
           <button className="action" type="button" onClick={copySummary}>
             Copiar resumen
           </button>
-        </section>
-      )}
-
-      {result?.feasible && (
-        <section className="card" style={{ marginTop: 18 }}>
-          <h2>🧪 Nutrientes obtenidos</h2>
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nutriente</th>
-                  <th>Obtenido</th>
-                  <th>Requerido</th>
-                  <th>Diferencia</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {nutrientRows.map((row) => {
-                  const difference = row.obtained - row.required;
-                  const status = getStatus(row.obtained, row.required);
-
-                  return (
-                    <tr key={row.key}>
-                      <td>{row.label}</td>
-                      <td>
-                        {round(row.obtained, row.decimals)}
-                        {row.suffix}
-                      </td>
-                      <td>
-                        {round(row.required, row.decimals)}
-                        {row.suffix}
-                      </td>
-                      <td>
-                        {difference >= 0 ? "+" : ""}
-                        {round(difference, row.decimals)}
-                        {row.suffix}
-                      </td>
-                      <td className={status.className}>{status.label}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="note" style={{ marginTop: 14 }}>
-            ✅ Ajustado significa que el nutriente cumple, pero quedó muy cerca
-            del mínimo. Eso suele ser bueno para costo, pero conviene vigilarlo.
-          </div>
         </section>
       )}
     </>
