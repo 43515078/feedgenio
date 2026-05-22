@@ -67,8 +67,11 @@ function getMaxValue(requirement: Requirement, key: NutrientKey) {
 
 function getStatus(row: NutrientRow) {
   const minDifference = row.obtained - row.min;
+
   const maxDifference =
-    typeof row.max === "number" ? row.max - row.obtained : undefined;
+    typeof row.max === "number"
+      ? row.max - row.obtained
+      : undefined;
 
   if (minDifference < -0.001) {
     return {
@@ -77,7 +80,10 @@ function getStatus(row: NutrientRow) {
     };
   }
 
-  if (typeof row.max === "number" && row.obtained - row.max > 0.001) {
+  if (
+    typeof row.max === "number" &&
+    row.obtained - row.max > 0.001
+  ) {
     return {
       label: "🔴 Pasado",
       className: "bad"
@@ -92,6 +98,7 @@ function getStatus(row: NutrientRow) {
   }
 
   if (
+    typeof row.max === "number" &&
     typeof maxDifference === "number" &&
     maxDifference >= 0 &&
     maxDifference <= row.max * 0.03
@@ -178,7 +185,10 @@ function buildFormulaAlerts(
       });
     }
 
-    if (typeof row.max === "number" && row.obtained > row.max + 0.001) {
+    if (
+      typeof row.max === "number" &&
+      row.obtained > row.max + 0.001
+    ) {
       alerts.push({
         level: "danger",
         message: `${row.label} supera el máximo: obtenido ${round(
@@ -435,7 +445,11 @@ export default function ResultsTab({
               💾 Guardar fórmula
             </button>
 
-            <button className="action secondary" type="button" onClick={copySummary}>
+            <button
+              className="action secondary"
+              type="button"
+              onClick={copySummary}
+            >
               Copiar resumen
             </button>
 
@@ -529,8 +543,11 @@ export default function ResultsTab({
           </div>
 
           <div className="note" style={{ marginTop: 14 }}>
-            ✅ Cerca mín = cumple, pero está muy pegado al mínimo. 🟠 Cerca máx =
-            cumple, pero está pegado al techo. 🔴 Pasado = supera el máximo.
+            ✅ Cerca mín = cumple pero quedó pegado al mínimo.
+            <br />
+            🟠 Cerca máx = cumple pero quedó pegado al máximo.
+            <br />
+            🔴 Pasado = excede el máximo permitido.
           </div>
         </section>
       )}
