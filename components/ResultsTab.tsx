@@ -69,9 +69,7 @@ function getStatus(row: NutrientRow) {
   const minDifference = row.obtained - row.min;
 
   const maxDifference =
-    typeof row.max === "number"
-      ? row.max - row.obtained
-      : undefined;
+    typeof row.max === "number" ? row.max - row.obtained : undefined;
 
   if (minDifference < -0.001) {
     return {
@@ -80,10 +78,7 @@ function getStatus(row: NutrientRow) {
     };
   }
 
-  if (
-    typeof row.max === "number" &&
-    row.obtained - row.max > 0.001
-  ) {
+  if (typeof row.max === "number" && row.obtained - row.max > 0.001) {
     return {
       label: "🔴 Pasado",
       className: "bad"
@@ -185,10 +180,7 @@ function buildFormulaAlerts(
       });
     }
 
-    if (
-      typeof row.max === "number" &&
-      row.obtained > row.max + 0.001
-    ) {
+    if (typeof row.max === "number" && row.obtained > row.max + 0.001) {
       alerts.push({
         level: "danger",
         message: `${row.label} supera el máximo: obtenido ${round(
@@ -340,6 +332,18 @@ function alertClass(level: Alert["level"]) {
   return "note";
 }
 
+function limitStatusClass(status: string) {
+  if (status === "max" || status === "nearMax" || status === "above") {
+    return "warning";
+  }
+
+  if (status === "min" || status === "nearMin" || status === "below") {
+    return "note";
+  }
+
+  return "note";
+}
+
 function buildSummary(result: FormulaResult, requirement: Requirement) {
   if (!result.feasible) return "";
 
@@ -383,6 +387,31 @@ function buildSummary(result: FormulaResult, requirement: Requirement) {
     );
   });
 
+  const ingredientLimits =
+    result.ingredientLimitStatuses?.filter((item) => item.status !== "free") ||
+    [];
+
+  const nutrientLimits =
+    result.nutrientLimitStatuses?.filter((item) => item.status !== "ok") || [];
+
+  if (ingredientLimits.length > 0) {
+    lines.push("");
+    lines.push("Ingredientes pegados a límites:");
+
+    ingredientLimits.forEach((item) => {
+      lines.push(`- ${item.message}`);
+    });
+  }
+
+  if (nutrientLimits.length > 0) {
+    lines.push("");
+    lines.push("Nutrientes limitantes:");
+
+    nutrientLimits.forEach((item) => {
+      lines.push(`- ${item.message}`);
+    });
+  }
+
   return lines.join("\n");
 }
 
@@ -396,6 +425,13 @@ export default function ResultsTab({
 
   const alerts =
     result?.feasible ? buildFormulaAlerts(result, requirement, nutrientRows) : [];
+
+  const ingredientLimitStatuses =
+    result?.ingredientLimitStatuses?.filter((item) => item.status !== "free") ||
+    [];
+
+  const nutrientLimitStatuses =
+    result?.nutrientLimitStatuses?.filter((item) => item.status !== "ok") || [];
 
   const summary = result?.feasible ? buildSummary(result, requirement) : "";
 
@@ -479,6 +515,54 @@ export default function ResultsTab({
           </>
         )}
       </section>
+
+      {result?.feasible && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>🧭 Mapa de restricciones</h2>
+
+          {ingredientLimitStatuses.length === 0 &&
+          nutrientLimitStatuses.length === 0 ? (
+            <div className="note">
+              No hay ingredientes pegados a límites ni nutrientes demasiado
+              ajustados. La fórmula tiene buen margen.
+            </div>
+          ) : (
+            <>
+              {ingredientLimitStatuses.length > 0 && (
+                <>
+                  <h3>📌 Ingredientes pegados</h3>
+
+                  {ingredientLimitStatuses.map((item) => (
+                    <div
+                      key={item.id}
+                      className={limitStatusClass(item.status)}
+                      style={{ marginTop: 10 }}
+                    >
+                      {item.message}
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {nutrientLimitStatuses.length > 0 && (
+                <>
+                  <h3 style={{ marginTop: 16 }}>🧪 Nutrientes limitantes</h3>
+
+                  {nutrientLimitStatuses.map((item) => (
+                    <div
+                      key={item.key}
+                      className={limitStatusClass(item.status)}
+                      style={{ marginTop: 10 }}
+                    >
+                      {item.message}
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {result?.feasible && (
         <section className="card" style={{ marginTop: 18 }}>
