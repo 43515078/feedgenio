@@ -1,4 +1,10 @@
-import type { Ingredient, NutrientKey } from "./ingredients";
+import {
+  nutrientFullLabels,
+  nutrientKeys,
+  type Ingredient,
+  type NutrientKey
+} from "./ingredients";
+
 import type { Requirement } from "./requirements";
 
 type SolverVariable = {
@@ -23,6 +29,26 @@ type NutrientDiagnostics = {
   difference: number;
 };
 
+type IngredientLimitStatus = {
+  id: string;
+  name: string;
+  amountKg100: number;
+  min: number;
+  max: number;
+  status: "min" | "max" | "free";
+  message: string;
+};
+
+type NutrientLimitStatus = {
+  key: NutrientKey;
+  label: string;
+  obtained: number;
+  min: number;
+  max?: number;
+  status: "below" | "nearMin" | "nearMax" | "above" | "ok";
+  message: string;
+};
+
 export type FormulaResult = {
   feasible: boolean;
   costPerKg: number;
@@ -39,62 +65,18 @@ export type FormulaResult = {
   nutrients: Record<NutrientKey, number>;
   message?: string;
   diagnostics?: NutrientDiagnostics[];
-};
-
-const nutrientKeys: NutrientKey[] = [
-  "energy",
-  "protein",
-  "lysine",
-  "methionine",
-  "metCys",
-  "threonine",
-  "tryptophan",
-  "arginine",
-  "isoleucine",
-  "valine",
-  "calcium",
-  "availablePhosphorus",
-  "sodium",
-  "chlorine",
-  "linoleicAcid"
-];
-
-const nutrientLabels: Record<NutrientKey, string> = {
-  energy: "Energía",
-  protein: "Proteína",
-  lysine: "Lisina",
-  methionine: "Metionina",
-  metCys: "Met + Cist",
-  threonine: "Treonina",
-  tryptophan: "Triptófano",
-  arginine: "Arginina",
-  isoleucine: "Isoleucina",
-  valine: "Valina",
-  calcium: "Calcio",
-  availablePhosphorus: "Fósforo disponible",
-  sodium: "Sodio",
-  chlorine: "Cloro",
-  linoleicAcid: "Ácido linoleico"
+  ingredientLimitStatuses?: IngredientLimitStatus[];
+  nutrientLimitStatuses?: NutrientLimitStatus[];
 };
 
 function emptyNutrients(): Record<NutrientKey, number> {
-  return {
-    energy: 0,
-    protein: 0,
-    lysine: 0,
-    methionine: 0,
-    metCys: 0,
-    threonine: 0,
-    tryptophan: 0,
-    arginine: 0,
-    isoleucine: 0,
-    valine: 0,
-    calcium: 0,
-    availablePhosphorus: 0,
-    sodium: 0,
-    chlorine: 0,
-    linoleicAcid: 0
-  };
+  const nutrients = {} as Record<NutrientKey, number>;
+
+  for (const key of nutrientKeys) {
+    nutrients[key] = 0;
+  }
+
+  return nutrients;
 }
 
 function getRequirementValue(requirement: Requirement, key: NutrientKey) {
@@ -106,6 +88,10 @@ function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
   const value = Number(requirement[maxKey] || 0);
 
   return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function decimalsForNutrient(key: NutrientKey) {
+  return key === "energy" ? 0 : 2;
 }
 
 function calculateFormulaNutrients(
@@ -160,7 +146,7 @@ function buildDiagnostics(
     const minValue = Number(possibleMin[key] || 0);
 
     return {
-      label: nutrientLabels[key],
+      label: nutrientFullLabels[key],
       required,
       requiredMax,
       possibleMax: maxValue,
@@ -203,11 +189,16 @@ function createModel(
   }
 
   for (const ingredient of ingredients) {
-    model.constraints[`${ingredient.id}_min`] = { min: ingredient.min };
-    model.constraints[`${ingredient.id}_max`] = { max: ingredient.max };
+    model.constraints[`${ingredient.id}_min`] = {
+      min: Number(ingredient.min || 0)
+    };
+
+    model.constraints[`${ingredient.id}_max`] = {
+      max: Number(ingredient.max || 0)
+    };
 
     const variable: SolverVariable = {
-      cost: ingredient.price,
+      cost: Number(ingredient.price || 0),
       total: 1,
       [`${ingredient.id}_min`]: 1,
       [`${ingredient.id}_max`]: 1
@@ -253,11 +244,11 @@ function buildExactRestrictionDiagnosis(
       const nutrients = calculateFormulaNutrients(testResult, ingredients);
       const obtained = nutrients[key];
       const required = getRequirementValue(requirement, key);
-      const decimals = key === "energy" ? 0 : 2;
+      const decimals = decimalsForNutrient(key);
 
       if (obtained + 0.0001 < required) {
         messages.push(
-          `- ${nutrientLabels[key]} mínimo: requiere ${required.toFixed(
+          `- ${nutrientFullLabels[key]} mínimo: requiere ${required.toFixed(
             decimals
           )}, pero al quitar esa restricción la mejor solución queda en ${obtained.toFixed(
             decimals
@@ -265,7 +256,7 @@ function buildExactRestrictionDiagnosis(
         );
       } else {
         messages.push(
-          `- ${nutrientLabels[key]} mínimo: al quitar esta restricción sí aparece solución. Revisa este mínimo junto con los límites de ingredientes.`
+          `- ${nutrientFullLabels[key]} mínimo: al quitar esta restricción sí aparece solución. Revisa este mínimo junto con los límites de ingredientes.`
         );
       }
     }
@@ -283,11 +274,11 @@ function buildExactRestrictionDiagnosis(
     if (testResult.feasible) {
       const nutrients = calculateFormulaNutrients(testResult, ingredients);
       const obtained = nutrients[key];
-      const decimals = key === "energy" ? 0 : 2;
+      const decimals = decimalsForNutrient(key);
 
       if (obtained - 0.0001 > maxValue) {
         messages.push(
-          `- ${nutrientLabels[key]} máximo: permite ${maxValue.toFixed(
+          `- ${nutrientFullLabels[key]} máximo: permite ${maxValue.toFixed(
             decimals
           )}, pero al quitar ese techo la solución queda en ${obtained.toFixed(
             decimals
@@ -295,7 +286,7 @@ function buildExactRestrictionDiagnosis(
         );
       } else {
         messages.push(
-          `- ${nutrientLabels[key]} máximo: al quitar este máximo sí aparece solución. Revisa este techo con los demás nutrientes.`
+          `- ${nutrientFullLabels[key]} máximo: al quitar este máximo sí aparece solución. Revisa este techo con los demás nutrientes.`
         );
       }
     }
@@ -432,6 +423,152 @@ function buildFailureMessage(
   };
 }
 
+function buildIngredientLimitStatuses(
+  ingredients: Ingredient[],
+  formulaIngredients: FormulaResult["ingredients"]
+): IngredientLimitStatus[] {
+  const statuses: IngredientLimitStatus[] = [];
+
+  for (const ingredient of ingredients) {
+    const formulaItem = formulaIngredients.find((item) => item.id === ingredient.id);
+    const amountKg100 = formulaItem?.amountKg100 || 0;
+
+    if (amountKg100 <= 0.0001) continue;
+
+    const min = Number(ingredient.min || 0);
+    const max = Number(ingredient.max || 0);
+
+    const isAtMin = Math.abs(amountKg100 - min) <= 0.01 && min > 0;
+    const isAtMax = Math.abs(amountKg100 - max) <= 0.01 && max > 0;
+
+    if (isAtMax) {
+      statuses.push({
+        id: ingredient.id,
+        name: ingredient.name,
+        amountKg100,
+        min,
+        max,
+        status: "max",
+        message: `${ingredient.name} quedó pegado al máximo (${max.toFixed(
+          2
+        )}%). Si la fórmula necesita más de este insumo, ese límite puede estar bloqueando.`
+      });
+
+      continue;
+    }
+
+    if (isAtMin) {
+      statuses.push({
+        id: ingredient.id,
+        name: ingredient.name,
+        amountKg100,
+        min,
+        max,
+        status: "min",
+        message: `${ingredient.name} quedó pegado al mínimo (${min.toFixed(
+          2
+        )}%). Puede estar entrando obligado por el límite mínimo.`
+      });
+
+      continue;
+    }
+
+    statuses.push({
+      id: ingredient.id,
+      name: ingredient.name,
+      amountKg100,
+      min,
+      max,
+      status: "free",
+      message: `${ingredient.name} quedó libre dentro de sus límites.`
+    });
+  }
+
+  return statuses;
+}
+
+function buildNutrientLimitStatuses(
+  nutrients: Record<NutrientKey, number>,
+  requirement: Requirement
+): NutrientLimitStatus[] {
+  return nutrientKeys.map((key) => {
+    const obtained = Number(nutrients[key] || 0);
+    const min = getRequirementValue(requirement, key);
+    const max = getRequirementMaxValue(requirement, key);
+    const decimals = decimalsForNutrient(key);
+    const label = nutrientFullLabels[key];
+
+    if (obtained < min - 0.0001) {
+      return {
+        key,
+        label,
+        obtained,
+        min,
+        max,
+        status: "below",
+        message: `${label} quedó por debajo del mínimo: ${obtained.toFixed(
+          decimals
+        )} vs ${min.toFixed(decimals)}.`
+      };
+    }
+
+    if (typeof max === "number" && obtained > max + 0.0001) {
+      return {
+        key,
+        label,
+        obtained,
+        min,
+        max,
+        status: "above",
+        message: `${label} superó el máximo: ${obtained.toFixed(
+          decimals
+        )} vs ${max.toFixed(decimals)}.`
+      };
+    }
+
+    if (obtained - min <= Math.max(min * 0.01, 0.0001)) {
+      return {
+        key,
+        label,
+        obtained,
+        min,
+        max,
+        status: "nearMin",
+        message: `${label} quedó muy cerca del mínimo: ${obtained.toFixed(
+          decimals
+        )} vs ${min.toFixed(decimals)}. Es un nutriente limitante de costo.`
+      };
+    }
+
+    if (
+      typeof max === "number" &&
+      max - obtained <= Math.max(max * 0.01, 0.0001)
+    ) {
+      return {
+        key,
+        label,
+        obtained,
+        min,
+        max,
+        status: "nearMax",
+        message: `${label} quedó muy cerca del máximo: ${obtained.toFixed(
+          decimals
+        )} vs ${max.toFixed(decimals)}. Ese techo puede estar limitando.`
+      };
+    }
+
+    return {
+      key,
+      label,
+      obtained,
+      min,
+      max,
+      status: "ok",
+      message: `${label} tiene margen correcto.`
+    };
+  });
+}
+
 export function solveFormula(
   ingredients: Ingredient[],
   requirement: Requirement
@@ -474,8 +611,8 @@ export function solveFormula(
         name: ingredient.name,
         amountKg100,
         amountKg50: amountKg100 / 2,
-        price: ingredient.price,
-        cost: amountKg100 * ingredient.price
+        price: Number(ingredient.price || 0),
+        cost: amountKg100 * Number(ingredient.price || 0)
       };
     })
     .filter((item) => item.amountKg100 > 0.0001);
@@ -503,6 +640,11 @@ export function solveFormula(
     costPer100Kg,
     costPer50Kg: costPer100Kg / 2,
     ingredients: formulaIngredients,
-    nutrients
+    nutrients,
+    ingredientLimitStatuses: buildIngredientLimitStatuses(
+      ingredients,
+      formulaIngredients
+    ),
+    nutrientLimitStatuses: buildNutrientLimitStatuses(nutrients, requirement)
   };
 }
