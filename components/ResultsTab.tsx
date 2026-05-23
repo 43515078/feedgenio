@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { NutrientKey } from "@/lib/ingredients";
 import { nutrientLabels } from "@/lib/ingredients";
 import type { Requirement } from "@/lib/requirements";
@@ -207,22 +210,6 @@ function buildFormulaAlerts(
     });
   }
 
-  if (profile.isBroiler && calciumCarbonate > 2.5) {
-    alerts.push({
-      level: "warning",
-      message:
-        "Perfil de pollo/Cobb con carbonato mayor a 2.5%. Revisa si el calcio requerido está alto o si falta otra fuente mineral."
-    });
-  }
-
-  if (profile.isPig && calciumCarbonate > 2) {
-    alerts.push({
-      level: "warning",
-      message:
-        "Perfil de cerdo con carbonato mayor a 2%. Revisa calcio y fósforo disponible para evitar exceso mineral."
-    });
-  }
-
   if (profile.isSummer && oil > 4.5) {
     alerts.push({
       level: "info",
@@ -234,22 +221,6 @@ function buildFormulaAlerts(
       level: "warning",
       message:
         "Aceite mayor a 4%. Puede mejorar energía, pero también afectar consumo, mezcla o estabilidad si no se maneja bien."
-    });
-  }
-
-  if (soybeanMeal > 32 && profile.isLayer) {
-    alerts.push({
-      level: "warning",
-      message:
-        "Soya alta para ponedora. Revisa costo, proteína final y si conviene usar aminoácidos sintéticos."
-    });
-  }
-
-  if (soybeanMeal > 35 && profile.isBroiler) {
-    alerts.push({
-      level: "info",
-      message:
-        "Soya alta en pollo/Cobb. Puede ser normal en fases iniciales, pero revisa costo y balance de aminoácidos."
     });
   }
 
@@ -269,21 +240,7 @@ function buildFormulaAlerts(
     });
   }
 
-  if (corn > 0 && corn < 45 && !profile.isGuineaPig) {
-    alerts.push({
-      level: "info",
-      message:
-        "Maíz menor a 45%. Puede ser normal, pero revisa si hay exceso de otros ingredientes energéticos o proteicos."
-    });
-  }
-
-  if (lysine <= 0.001 && (profile.isBroiler || profile.isPig)) {
-    alerts.push({
-      level: "warning",
-      message:
-        "Perfil de pollo o cerdo sin lisina sintética. Revisa si la soya subió demasiado o si la lisina quedó muy ajustada."
-    });
-  } else if (lysine <= 0.001) {
+  if (lysine <= 0.001) {
     alerts.push({
       level: "info",
       message:
@@ -337,17 +294,26 @@ function limitStatusClass(status: string) {
     return "warning";
   }
 
-  if (status === "min" || status === "nearMin" || status === "below") {
-    return "note";
-  }
-
   return "note";
 }
 
-function buildSummary(result: FormulaResult, requirement: Requirement) {
+function buildSummary(
+  result: FormulaResult,
+  requirement: Requirement,
+  productionCostPerKg: number,
+  bagCostPer50Kg: number,
+  marginPercent: number
+) {
   if (!result.feasible) return "";
 
   const nutrientRows = buildNutrientRows(result, requirement);
+
+  const costWithProductionPerKg = result.costPerKg + productionCostPerKg;
+  const realCostPer50Kg = costWithProductionPerKg * 50 + bagCostPer50Kg;
+  const realCostPer100Kg = costWithProductionPerKg * 100 + bagCostPer50Kg * 2;
+  const realCostPerTon = costWithProductionPerKg * 1000 + bagCostPer50Kg * 20;
+  const salePer50Kg = realCostPer50Kg * (1 + marginPercent / 100);
+  const salePerKg = salePer50Kg / 50;
 
   const lines = [
     `FeedGenio - ${requirement.name}`,
@@ -360,16 +326,17 @@ function buildSummary(result: FormulaResult, requirement: Requirement) {
   });
 
   lines.push("");
-  lines.push("Fórmula por saco de 50 kg:");
+  lines.push("Costeo:");
+  lines.push(`Costo fórmula por kg: S/ ${round(result.costPerKg, 3)}`);
+  lines.push(`Costo productivo por kg: S/ ${round(productionCostPerKg, 3)}`);
+  lines.push(`Bolsa por saco 50 kg: S/ ${round(bagCostPer50Kg, 2)}`);
+  lines.push(`Costo real saco 50 kg: S/ ${round(realCostPer50Kg, 2)}`);
+  lines.push(`Costo real 100 kg: S/ ${round(realCostPer100Kg, 2)}`);
+  lines.push(`Costo real tonelada: S/ ${round(realCostPerTon, 2)}`);
+  lines.push(`Margen: ${round(marginPercent, 1)}%`);
+  lines.push(`Precio venta sugerido saco 50 kg: S/ ${round(salePer50Kg, 2)}`);
+  lines.push(`Precio venta sugerido por kg: S/ ${round(salePerKg, 3)}`);
 
-  result.ingredients.forEach((item) => {
-    lines.push(`${item.name}: ${round(item.amountKg50, 3)} kg`);
-  });
-
-  lines.push("");
-  lines.push(`Costo por kg: S/ ${round(result.costPerKg, 3)}`);
-  lines.push(`Costo por saco 50 kg: S/ ${round(result.costPer50Kg, 2)}`);
-  lines.push(`Costo por 100 kg: S/ ${round(result.costPer100Kg, 2)}`);
   lines.push("");
   lines.push("Nutrientes obtenidos:");
 
@@ -387,31 +354,6 @@ function buildSummary(result: FormulaResult, requirement: Requirement) {
     );
   });
 
-  const ingredientLimits =
-    result.ingredientLimitStatuses?.filter((item) => item.status !== "free") ||
-    [];
-
-  const nutrientLimits =
-    result.nutrientLimitStatuses?.filter((item) => item.status !== "ok") || [];
-
-  if (ingredientLimits.length > 0) {
-    lines.push("");
-    lines.push("Ingredientes pegados a límites:");
-
-    ingredientLimits.forEach((item) => {
-      lines.push(`- ${item.message}`);
-    });
-  }
-
-  if (nutrientLimits.length > 0) {
-    lines.push("");
-    lines.push("Nutrientes limitantes:");
-
-    nutrientLimits.forEach((item) => {
-      lines.push(`- ${item.message}`);
-    });
-  }
-
   return lines.join("\n");
 }
 
@@ -420,6 +362,10 @@ export default function ResultsTab({
   requirement,
   onSaveFormula
 }: Props) {
+  const [productionCostPerKg, setProductionCostPerKg] = useState(0);
+  const [bagCostPer50Kg, setBagCostPer50Kg] = useState(0);
+  const [marginPercent, setMarginPercent] = useState(0);
+
   const nutrientRows =
     result?.feasible ? buildNutrientRows(result, requirement) : [];
 
@@ -433,7 +379,31 @@ export default function ResultsTab({
   const nutrientLimitStatuses =
     result?.nutrientLimitStatuses?.filter((item) => item.status !== "ok") || [];
 
-  const summary = result?.feasible ? buildSummary(result, requirement) : "";
+  const costWithProductionPerKg =
+    result?.feasible ? result.costPerKg + productionCostPerKg : 0;
+
+  const realCostPer50Kg =
+    result?.feasible ? costWithProductionPerKg * 50 + bagCostPer50Kg : 0;
+
+  const realCostPer100Kg =
+    result?.feasible ? costWithProductionPerKg * 100 + bagCostPer50Kg * 2 : 0;
+
+  const realCostPerTon =
+    result?.feasible ? costWithProductionPerKg * 1000 + bagCostPer50Kg * 20 : 0;
+
+  const salePer50Kg = realCostPer50Kg * (1 + marginPercent / 100);
+  const salePerKg = salePer50Kg / 50;
+
+  const summary =
+    result?.feasible
+      ? buildSummary(
+          result,
+          requirement,
+          productionCostPerKg,
+          bagCostPer50Kg,
+          marginPercent
+        )
+      : "";
 
   async function copySummary() {
     if (!summary) return;
@@ -515,6 +485,95 @@ export default function ResultsTab({
           </>
         )}
       </section>
+
+      {result?.feasible && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>🏭 Costeo productivo</h2>
+
+          <div className="table-wrap">
+            <table>
+              <tbody>
+                <tr>
+                  <td>Costo producción por kg</td>
+                  <td>
+                    <input
+                      className="price-input"
+                      type="number"
+                      step="0.001"
+                      value={productionCostPerKg}
+                      onChange={(event) =>
+                        setProductionCostPerKg(Number(event.target.value || 0))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Costo bolsa por saco 50 kg</td>
+                  <td>
+                    <input
+                      className="price-input"
+                      type="number"
+                      step="0.01"
+                      value={bagCostPer50Kg}
+                      onChange={(event) =>
+                        setBagCostPer50Kg(Number(event.target.value || 0))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Margen de ganancia %</td>
+                  <td>
+                    <input
+                      className="price-input"
+                      type="number"
+                      step="0.1"
+                      value={marginPercent}
+                      onChange={(event) =>
+                        setMarginPercent(Number(event.target.value || 0))
+                      }
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="stats" style={{ marginTop: 14 }}>
+            <div className="stat">
+              <span>Costo real kg</span>
+              <strong>S/ {round(costWithProductionPerKg, 3)}</strong>
+            </div>
+
+            <div className="stat">
+              <span>Costo real saco 50 kg</span>
+              <strong>S/ {round(realCostPer50Kg, 2)}</strong>
+            </div>
+
+            <div className="stat">
+              <span>Costo real tonelada</span>
+              <strong>S/ {round(realCostPerTon, 2)}</strong>
+            </div>
+
+            <div className="stat">
+              <span>Venta sugerida saco</span>
+              <strong>S/ {round(salePer50Kg, 2)}</strong>
+            </div>
+
+            <div className="stat">
+              <span>Venta sugerida kg</span>
+              <strong>S/ {round(salePerKg, 3)}</strong>
+            </div>
+          </div>
+
+          <div className="note" style={{ marginTop: 14 }}>
+            El costo real incluye fórmula + producción + bolsa. El margen se
+            aplica sobre el saco de 50 kg.
+          </div>
+        </section>
+      )}
 
       {result?.feasible && (
         <section className="card" style={{ marginTop: 18 }}>
@@ -624,14 +683,6 @@ export default function ResultsTab({
                 })}
               </tbody>
             </table>
-          </div>
-
-          <div className="note" style={{ marginTop: 14 }}>
-            ✅ Cerca mín = cumple pero quedó pegado al mínimo.
-            <br />
-            🟠 Cerca máx = cumple pero quedó pegado al máximo.
-            <br />
-            🔴 Pasado = excede el máximo permitido.
           </div>
         </section>
       )}
