@@ -24,34 +24,23 @@ export type Ingredient = {
   nutrients: Record<NutrientKey, number>;
 };
 
-export function createEmptyIngredient(): Ingredient {
-  const timestamp = Date.now();
-
-  return {
-    id: `ingrediente_${timestamp}`,
-    name: "Nuevo ingrediente",
-    price: 0,
-    min: 0,
-    max: 100,
-    nutrients: {
-      energy: 0,
-      protein: 0,
-      lysine: 0,
-      methionine: 0,
-      metCys: 0,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
-      calcium: 0,
-      availablePhosphorus: 0,
-      sodium: 0,
-      chlorine: 0,
-      linoleicAcid: 0
-    }
-  };
-}
+export const nutrientKeys: NutrientKey[] = [
+  "energy",
+  "protein",
+  "lysine",
+  "methionine",
+  "metCys",
+  "threonine",
+  "tryptophan",
+  "arginine",
+  "isoleucine",
+  "valine",
+  "calcium",
+  "availablePhosphorus",
+  "sodium",
+  "chlorine",
+  "linoleicAcid"
+];
 
 export const nutrientLabels: Record<NutrientKey, string> = {
   energy: "EM",
@@ -70,6 +59,57 @@ export const nutrientLabels: Record<NutrientKey, string> = {
   chlorine: "Cl",
   linoleicAcid: "Linol"
 };
+
+export const nutrientFullLabels: Record<NutrientKey, string> = {
+  energy: "Energía",
+  protein: "Proteína",
+  lysine: "Lisina",
+  methionine: "Metionina",
+  metCys: "Met + Cist",
+  threonine: "Treonina",
+  tryptophan: "Triptófano",
+  arginine: "Arginina",
+  isoleucine: "Isoleucina",
+  valine: "Valina",
+  calcium: "Calcio",
+  availablePhosphorus: "Fósforo disponible",
+  sodium: "Sodio",
+  chlorine: "Cloro",
+  linoleicAcid: "Ácido linoleico"
+};
+
+export function createEmptyNutrients(): Record<NutrientKey, number> {
+  return {
+    energy: 0,
+    protein: 0,
+    lysine: 0,
+    methionine: 0,
+    metCys: 0,
+    threonine: 0,
+    tryptophan: 0,
+    arginine: 0,
+    isoleucine: 0,
+    valine: 0,
+    calcium: 0,
+    availablePhosphorus: 0,
+    sodium: 0,
+    chlorine: 0,
+    linoleicAcid: 0
+  };
+}
+
+export function createEmptyIngredient(): Ingredient {
+  const timestamp = Date.now();
+
+  return {
+    id: `ingrediente_${timestamp}`,
+    name: "Nuevo ingrediente",
+    price: 0,
+    min: 0,
+    max: 100,
+    nutrients: createEmptyNutrients()
+  };
+}
 
 export const defaultIngredients: Ingredient[] = [
   {
