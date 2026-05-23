@@ -36,6 +36,32 @@ function lowerText(value: string) {
   return value.toLowerCase();
 }
 
+function isKnownLowNutrientAdditive(name: string) {
+  return (
+    name.includes("premix") ||
+    name.includes("premezcla") ||
+    name.includes("vit min") ||
+    name.includes("vitamina") ||
+    name.includes("mineral") ||
+    name.includes("colina") ||
+    name.includes("bacitracina") ||
+    name.includes("zincbacitracina") ||
+    name.includes("bmd") ||
+    name.includes("aflaban") ||
+    name.includes("fungiban") ||
+    name.includes("antifúngico") ||
+    name.includes("antifungico") ||
+    name.includes("secuestrante") ||
+    name.includes("toxina") ||
+    name.includes("toxinas") ||
+    name.includes("enzima") ||
+    name.includes("enzimas") ||
+    name.includes("fitasa") ||
+    name.includes("superzyme") ||
+    name.includes("ronozyme")
+  );
+}
+
 function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
   const alerts: MatrixAlert[] = [];
 
@@ -56,13 +82,24 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
     const looksLikeCorn = name.includes("maíz") || name.includes("maiz");
     const looksLikeSoy = name.includes("soya") || name.includes("soja");
     const looksLikeOil = name.includes("aceite") || name.includes("grasa");
-    const looksLikeCarbonate = name.includes("carbonato");
+
+    const looksLikeCarbonate =
+      name.includes("carbonato") && !name.includes("bicarbonato");
+
+    const looksLikeBicarbonate = name.includes("bicarbonato");
+
     const looksLikeDcp =
       name.includes("fosfato") ||
       name.includes("dcp") ||
       name.includes("dicálcico") ||
       name.includes("dicalcico");
-    const looksLikeSalt = name.includes("sal");
+
+    const looksLikeSalt =
+      name === "sal" ||
+      name.includes("sal común") ||
+      name.includes("sal comun");
+
+    const isAdditive = isKnownLowNutrientAdditive(name);
 
     if (!ingredient.name.trim()) {
       alerts.push({
@@ -113,6 +150,13 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
       });
     }
 
+    if (looksLikeBicarbonate && sodium < 20) {
+      alerts.push({
+        level: "warning",
+        message: `${ingredient.name}: sodio bajo para bicarbonato (${sodium}%). Revisa si la matriz está completa.`
+      });
+    }
+
     if (looksLikeDcp && availablePhosphorus < 10) {
       alerts.push({
         level: "warning",
@@ -142,6 +186,7 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
     }
 
     if (
+      !isAdditive &&
       energy <= 0 &&
       protein <= 0 &&
       calcium <= 0 &&
@@ -152,7 +197,7 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
     ) {
       alerts.push({
         level: "info",
-        message: `${ingredient.name}: tiene casi toda la matriz en 0. Si es un aditivo sin aporte nutricional, está bien.`
+        message: `${ingredient.name}: tiene casi toda la matriz en 0. Si es un aditivo sin aporte nutricional, puedes ignorarlo.`
       });
     }
   });
@@ -161,7 +206,7 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
     alerts.push({
       level: "info",
       message:
-        "Matriz sin alertas básicas. Igual revisa decimales y ceros antes de producir."
+        "✅ Matriz revisada. No se detectaron errores típicos de formulación."
     });
   }
 
