@@ -725,14 +725,18 @@ export default function HomePage() {
 
         {activeTab === "formular" && (
           <FormulaTab
-            ingredients={ingredients}
-            loading={loading}
-            onToggle={toggleIngredient}
-            onUpdate={updateIngredient}
-            onCalculate={() => calculateFormula(ingredients, requirement)}
-            onReset={resetIngredients}
-            onAddIngredient={addIngredient}
-          />
+  ingredients={ingredients}
+  loading={loading}
+  requirementProfiles={requirementProfiles}
+  activeRequirementIndex={activeRequirementIndex}
+  onSelectRequirement={selectRequirement}
+  onToggle={toggleIngredient}
+  onUpdate={updateIngredient}
+  onCalculate={() => calculateFormula(ingredients, requirement)}
+  onGoToResults={() => setActiveTab("results")}
+  onReset={resetIngredients}
+  onAddIngredient={addIngredient}
+/>
         )}
 
         {activeTab === "matrix" && (
