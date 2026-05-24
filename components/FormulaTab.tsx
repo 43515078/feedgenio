@@ -1,4 +1,5 @@
 import type { Ingredient } from "@/lib/ingredients";
+import type { Requirement } from "@/lib/requirements";
 
 type EditableIngredient = Ingredient & {
   active: boolean;
@@ -7,6 +8,9 @@ type EditableIngredient = Ingredient & {
 type Props = {
   ingredients: EditableIngredient[];
   loading: boolean;
+  requirementProfiles: Requirement[];
+  activeRequirementIndex: number;
+  onSelectRequirement: (index: number) => void;
   onToggle: (id: string) => void;
   onUpdate: (
     id: string,
@@ -14,6 +18,7 @@ type Props = {
     value: number
   ) => void;
   onCalculate: () => void;
+  onGoToResults: () => void;
   onReset: () => void;
   onAddIngredient: () => void;
 };
@@ -21,15 +26,53 @@ type Props = {
 export default function FormulaTab({
   ingredients,
   loading,
+  requirementProfiles,
+  activeRequirementIndex,
+  onSelectRequirement,
   onToggle,
   onUpdate,
   onCalculate,
+  onGoToResults,
   onReset,
   onAddIngredient
 }: Props) {
+  const activeRequirement =
+    requirementProfiles[activeRequirementIndex] || requirementProfiles[0];
+
   return (
     <section className="card">
       <h2>📦 Insumos, precios y límites</h2>
+
+      <div className="note" style={{ marginBottom: 14 }}>
+        <strong>Requerimiento activo:</strong>{" "}
+        {activeRequirement?.name || "Sin requerimiento"}
+      </div>
+
+      <div className="table-wrap" style={{ marginBottom: 14 }}>
+        <table>
+          <tbody>
+            <tr>
+              <td>Elegir requerimiento</td>
+              <td>
+                <select
+                  className="price-input"
+                  style={{ width: "100%", maxWidth: 320 }}
+                  value={activeRequirementIndex}
+                  onChange={(event) =>
+                    onSelectRequirement(Number(event.target.value))
+                  }
+                >
+                  {requirementProfiles.map((profile, index) => (
+                    <option key={`${profile.name}_${index}`} value={index}>
+                      {profile.name || `Perfil ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div className="table-wrap">
         <table>
@@ -56,9 +99,7 @@ export default function FormulaTab({
                     className="checkbox-input"
                     type="checkbox"
                     checked={ingredient.active}
-                    onChange={() =>
-                      onToggle(ingredient.id)
-                    }
+                    onChange={() => onToggle(ingredient.id)}
                   />
                 </td>
 
@@ -74,9 +115,7 @@ export default function FormulaTab({
                       onUpdate(
                         ingredient.id,
                         "price",
-                        Number(
-                          event.target.value || 0
-                        )
+                        Number(event.target.value || 0)
                       )
                     }
                   />
@@ -92,9 +131,7 @@ export default function FormulaTab({
                       onUpdate(
                         ingredient.id,
                         "min",
-                        Number(
-                          event.target.value || 0
-                        )
+                        Number(event.target.value || 0)
                       )
                     }
                   />
@@ -110,9 +147,7 @@ export default function FormulaTab({
                       onUpdate(
                         ingredient.id,
                         "max",
-                        Number(
-                          event.target.value || 0
-                        )
+                        Number(event.target.value || 0)
                       )
                     }
                   />
@@ -123,14 +158,12 @@ export default function FormulaTab({
         </table>
       </div>
 
-      <button
-        className="action"
-        type="button"
-        onClick={onCalculate}
-      >
-        {loading
-          ? "Calculando..."
-          : "Recalcular fórmula"}
+      <button className="action" type="button" onClick={onCalculate}>
+        {loading ? "Calculando..." : "Recalcular fórmula"}
+      </button>
+
+      <button className="action secondary" type="button" onClick={onGoToResults}>
+        📊 Ver resultados
       </button>
 
       <button
@@ -141,11 +174,7 @@ export default function FormulaTab({
         Agregar ingrediente
       </button>
 
-      <button
-        className="action secondary"
-        type="button"
-        onClick={onReset}
-      >
+      <button className="action secondary" type="button" onClick={onReset}>
         Reiniciar datos
       </button>
     </section>
