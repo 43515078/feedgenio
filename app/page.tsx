@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  createAllSpecies,
   createEmptyIngredient,
+  createEmptyNutrients,
   defaultIngredients,
+  speciesKeys,
   type Ingredient,
-  type NutrientKey
+  type NutrientKey,
+  type SpeciesKey
 } from "@/lib/ingredients";
 
 import { defaultRequirement, type Requirement } from "@/lib/requirements";
@@ -46,7 +50,6 @@ const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
 const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
 const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
 const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
-const SPECIES_FILTER_STORAGE_KEY = "feedgenio_species_filter_v1";
 
 const nutrientKeys: NutrientKey[] = [
   "energy",
@@ -66,29 +69,10 @@ const nutrientKeys: NutrientKey[] = [
   "linoleicAcid"
 ];
 
-function createEmptyNutrients(): Record<NutrientKey, number> {
-  return {
-    energy: 0,
-    protein: 0,
-    lysine: 0,
-    methionine: 0,
-    metCys: 0,
-    threonine: 0,
-    tryptophan: 0,
-    arginine: 0,
-    isoleucine: 0,
-    valine: 0,
-    calcium: 0,
-    availablePhosphorus: 0,
-    sodium: 0,
-    chlorine: 0,
-    linoleicAcid: 0
-  };
-}
-
 function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
     ...ingredient,
+    species: ingredient.species || createAllSpecies(true),
     active: true
   }));
 }
@@ -105,12 +89,30 @@ function normalizeNutrients(
   return normalized;
 }
 
+function normalizeSpecies(
+  species: Partial<Record<SpeciesKey, boolean>> | undefined
+): Record<SpeciesKey, boolean> {
+  const normalized = createAllSpecies(true);
+
+  for (const key of speciesKeys) {
+    normalized[key] =
+      typeof species?.[key] === "boolean" ? Boolean(species[key]) : true;
+  }
+
+  return normalized;
+}
+
 function normalizeSavedIngredients(
-  items: EditableIngredient[]
+  items: Array<Partial<EditableIngredient>>
 ): EditableIngredient[] {
   return items.map((item) => ({
-    ...item,
+    id: String(item.id || `ingrediente_${Date.now()}`),
+    name: String(item.name || "Nuevo ingrediente"),
+    price: numberOrDefault(item.price, 0),
+    min: numberOrDefault(item.min, 0),
+    max: numberOrDefault(item.max, 100),
     active: typeof item.active === "boolean" ? item.active : true,
+    species: normalizeSpecies(item.species),
     nutrients: normalizeNutrients(item.nutrients)
   }));
 }
@@ -268,12 +270,8 @@ function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
   };
 }
 
-function lowerText(value: string) {
-  return value.toLowerCase();
-}
-
-function getProfileSpecies(requirementName: string) {
-  const name = lowerText(requirementName);
+function getSpeciesFromRequirement(requirementName: string): SpeciesKey | null {
+  const name = requirementName.toLowerCase();
 
   if (
     name.includes("ponedora") ||
@@ -288,8 +286,8 @@ function getProfileSpecies(requirementName: string) {
 
   if (
     name.includes("cobb") ||
-    name.includes("broiler") ||
-    name.includes("pollo")
+    name.includes("pollo") ||
+    name.includes("broiler")
   ) {
     return "broiler";
   }
@@ -302,91 +300,18 @@ function getProfileSpecies(requirementName: string) {
     return "guineaPig";
   }
 
-  return "general";
+  return null;
 }
 
-function shouldShowIngredientForRequirement(
-  ingredient: EditableIngredient,
+function filterIngredientsByRequirement(
+  items: EditableIngredient[],
   requirementName: string
 ) {
-  const species = getProfileSpecies(requirementName);
-  const name = lowerText(ingredient.name);
+  const species = getSpeciesFromRequirement(requirementName);
 
-  const isLayerOnly =
-    name.includes("carbonato grueso") ||
-    name.includes("conchuela") ||
-    name.includes("granulado") ||
-    name.includes("grano grueso");
+  if (!species) return items;
 
-  const isPoultryUseful =
-    name.includes("maíz") ||
-    name.includes("maiz") ||
-    name.includes("soya") ||
-    name.includes("soja") ||
-    name.includes("aceite") ||
-    name.includes("carbonato") ||
-    name.includes("fosfato") ||
-    name.includes("dcp") ||
-    name.includes("sal") ||
-    name.includes("bicarbonato") ||
-    name.includes("metionina") ||
-    name.includes("lisina") ||
-    name.includes("treonina") ||
-    name.includes("premix") ||
-    name.includes("premezcla") ||
-    name.includes("colina") ||
-    name.includes("enzima") ||
-    name.includes("fitasa") ||
-    name.includes("secuestrante") ||
-    name.includes("antifúngico") ||
-    name.includes("antifungico");
-
-  const isPigUseful =
-    name.includes("maíz") ||
-    name.includes("maiz") ||
-    name.includes("soya") ||
-    name.includes("soja") ||
-    name.includes("aceite") ||
-    name.includes("afrecho") ||
-    name.includes("polvillo") ||
-    name.includes("fosfato") ||
-    name.includes("dcp") ||
-    name.includes("carbonato") ||
-    name.includes("sal") ||
-    name.includes("lisina") ||
-    name.includes("metionina") ||
-    name.includes("treonina") ||
-    name.includes("premix") ||
-    name.includes("premezcla") ||
-    name.includes("enzima") ||
-    name.includes("fitasa") ||
-    name.includes("secuestrante") ||
-    name.includes("antifúngico") ||
-    name.includes("antifungico");
-
-  const isGuineaPigUseful =
-    name.includes("maíz") ||
-    name.includes("maiz") ||
-    name.includes("soya") ||
-    name.includes("soja") ||
-    name.includes("afrecho") ||
-    name.includes("polvillo") ||
-    name.includes("alfalfa") ||
-    name.includes("heno") ||
-    name.includes("carbonato") ||
-    name.includes("fosfato") ||
-    name.includes("dcp") ||
-    name.includes("sal") ||
-    name.includes("premix") ||
-    name.includes("premezcla");
-
-  if (species === "general") return true;
-  if (species === "layer") return isPoultryUseful;
-  if (species === "broiler") return isPoultryUseful && !isLayerOnly;
-  if (species === "pig") return isPigUseful && !isLayerOnly;
-  if (species === "guineaPig") return isGuineaPigUseful && !isLayerOnly;
-
-  return true;
+  return items.filter((ingredient) => Boolean(ingredient.species?.[species]));
 }
 
 export default function HomePage() {
@@ -402,7 +327,6 @@ export default function HomePage() {
   const [multiplierDrafts, setMultiplierDrafts] = useState<
     Record<string, string>
   >({});
-  const [speciesFilterEnabled, setSpeciesFilterEnabled] = useState(false);
   const [result, setResult] = useState<FormulaResult | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -410,12 +334,8 @@ export default function HomePage() {
     requirementProfiles[activeRequirementIndex] || defaultRequirement;
 
   const visibleIngredients = useMemo(() => {
-    if (!speciesFilterEnabled) return ingredients;
-
-    return ingredients.filter((ingredient) =>
-      shouldShowIngredientForRequirement(ingredient, requirement.name)
-    );
-  }, [ingredients, speciesFilterEnabled, requirement.name]);
+    return filterIngredientsByRequirement(ingredients, requirement.name);
+  }, [ingredients, requirement.name]);
 
   const hiddenIngredientCount = ingredients.length - visibleIngredients.length;
 
@@ -474,9 +394,6 @@ export default function HomePage() {
     const savedFormulasStorage = window.localStorage.getItem(
       SAVED_FORMULAS_STORAGE_KEY
     );
-    const savedSpeciesFilter = window.localStorage.getItem(
-      SPECIES_FILTER_STORAGE_KEY
-    );
 
     if (savedIngredients) {
       try {
@@ -512,14 +429,16 @@ export default function HomePage() {
       } catch {}
     }
 
-    if (savedSpeciesFilter) {
-      setSpeciesFilterEnabled(savedSpeciesFilter === "true");
-    }
+    const currentRequirement = currentRequirements[currentIndex];
+    const visible = filterIngredientsByRequirement(
+      currentIngredients,
+      currentRequirement.name
+    );
 
     setIngredients(currentIngredients);
     setRequirementProfiles(currentRequirements);
     setActiveRequirementIndex(currentIndex);
-    calculateFormula(currentIngredients, currentRequirements[currentIndex]);
+    calculateFormula(visible, currentRequirement);
   }, []);
 
   function saveAll(
@@ -528,6 +447,7 @@ export default function HomePage() {
     updatedIndex: number
   ) {
     const safeIndex = updatedProfiles[updatedIndex] ? updatedIndex : 0;
+    const nextRequirement = updatedProfiles[safeIndex];
 
     setIngredients(updatedIngredients);
     setRequirementProfiles(updatedProfiles);
@@ -545,15 +465,12 @@ export default function HomePage() {
 
     window.localStorage.setItem(ACTIVE_REQUIREMENT_INDEX_KEY, String(safeIndex));
 
-    const nextRequirement = updatedProfiles[safeIndex];
+    const visible = filterIngredientsByRequirement(
+      updatedIngredients,
+      nextRequirement.name
+    );
 
-    const nextVisibleIngredients = speciesFilterEnabled
-      ? updatedIngredients.filter((ingredient) =>
-          shouldShowIngredientForRequirement(ingredient, nextRequirement.name)
-        )
-      : updatedIngredients;
-
-    calculateFormula(nextVisibleIngredients, nextRequirement);
+    calculateFormula(visible, nextRequirement);
   }
 
   function saveSavedFormulas(updated: SavedFormula[]) {
@@ -564,27 +481,11 @@ export default function HomePage() {
     );
   }
 
-  function toggleSpeciesFilter() {
-    const nextValue = !speciesFilterEnabled;
-    setSpeciesFilterEnabled(nextValue);
-    window.localStorage.setItem(SPECIES_FILTER_STORAGE_KEY, String(nextValue));
-
-    const nextVisibleIngredients = nextValue
-      ? ingredients.filter((ingredient) =>
-          shouldShowIngredientForRequirement(ingredient, requirement.name)
-        )
-      : ingredients;
-
-    calculateFormula(nextVisibleIngredients, requirement);
-  }
-
   function moveIngredient(id: string, direction: "up" | "down") {
     const currentIndex = ingredients.findIndex((ingredient) => ingredient.id === id);
-
     if (currentIndex < 0) return;
 
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-
     if (targetIndex < 0 || targetIndex >= ingredients.length) return;
 
     const updatedIngredients = [...ingredients];
@@ -609,6 +510,26 @@ export default function HomePage() {
   function updateIngredientName(id: string, name: string) {
     const updatedIngredients = ingredients.map((ingredient) =>
       ingredient.id === id ? { ...ingredient, name } : ingredient
+    );
+
+    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+  }
+
+  function updateIngredientSpecies(
+    id: string,
+    species: SpeciesKey,
+    value: boolean
+  ) {
+    const updatedIngredients = ingredients.map((ingredient) =>
+      ingredient.id === id
+        ? {
+            ...ingredient,
+            species: {
+              ...normalizeSpecies(ingredient.species),
+              [species]: value
+            }
+          }
+        : ingredient
     );
 
     saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
@@ -677,9 +598,7 @@ export default function HomePage() {
   }
 
   function deleteRequirement() {
-    if (requirementProfiles.length <= 1) {
-      return;
-    }
+    if (requirementProfiles.length <= 1) return;
 
     const updatedProfiles = requirementProfiles.filter(
       (_, index) => index !== activeRequirementIndex
@@ -723,7 +642,6 @@ export default function HomePage() {
 
   function resetIngredients() {
     const freshIngredients = getInitialIngredients();
-
     saveAll(freshIngredients, requirementProfiles, activeRequirementIndex);
   }
 
@@ -756,15 +674,13 @@ export default function HomePage() {
       costing: normalizeCosting(costing)
     };
 
-    const updated = [newFormula, ...savedFormulas];
-    saveSavedFormulas(updated);
+    saveSavedFormulas([newFormula, ...savedFormulas]);
     window.alert("Fórmula guardada.");
     setActiveTab("saved");
   }
 
   function deleteSavedFormula(id: string) {
-    const updated = savedFormulas.filter((item) => item.id !== id);
-    saveSavedFormulas(updated);
+    saveSavedFormulas(savedFormulas.filter((item) => item.id !== id));
 
     setMultiplierDrafts((current) => {
       const copy = { ...current };
@@ -775,14 +691,13 @@ export default function HomePage() {
 
   function renameSavedFormula(formula: SavedFormula) {
     const newName = window.prompt("Nuevo nombre:", formula.name);
-
     if (!newName) return;
 
-    const updated = savedFormulas.map((item) =>
-      item.id === formula.id ? { ...item, name: newName } : item
+    saveSavedFormulas(
+      savedFormulas.map((item) =>
+        item.id === formula.id ? { ...item, name: newName } : item
+      )
     );
-
-    saveSavedFormulas(updated);
   }
 
   function duplicateSavedFormula(formula: SavedFormula) {
@@ -846,35 +761,24 @@ export default function HomePage() {
     if (cleanValue === "") return;
 
     const numericValue = Number(cleanValue);
-
     if (!Number.isFinite(numericValue) || numericValue <= 0) return;
 
-    const updated = savedFormulas.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            multiplier: numericValue
-          }
-        : item
+    saveSavedFormulas(
+      savedFormulas.map((item) =>
+        item.id === id ? { ...item, multiplier: numericValue } : item
+      )
     );
-
-    saveSavedFormulas(updated);
   }
 
   function finishMultiplierEdit(formula: SavedFormula) {
     const numericValue = getMultiplierNumber(formula);
     const finalValue = numericValue > 0 ? numericValue : 1;
 
-    const updated = savedFormulas.map((item) =>
-      item.id === formula.id
-        ? {
-            ...item,
-            multiplier: finalValue
-          }
-        : item
+    saveSavedFormulas(
+      savedFormulas.map((item) =>
+        item.id === formula.id ? { ...item, multiplier: finalValue } : item
+      )
     );
-
-    saveSavedFormulas(updated);
 
     setMultiplierDrafts((current) => ({
       ...current,
@@ -917,10 +821,8 @@ export default function HomePage() {
   }
 
   async function copySavedFormula(formula: SavedFormula) {
-    const text = buildSavedFormulaText(formula);
-
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(buildSavedFormulaText(formula));
       window.alert("Fórmula copiada.");
     } catch {
       window.alert("No se pudo copiar la fórmula.");
@@ -978,13 +880,10 @@ export default function HomePage() {
           <FormulaTab
             ingredients={visibleIngredients}
             hiddenIngredientCount={hiddenIngredientCount}
-            speciesFilterEnabled={speciesFilterEnabled}
             loading={loading}
             requirementProfiles={requirementProfiles}
             activeRequirementIndex={activeRequirementIndex}
             onSelectRequirement={selectRequirement}
-            onToggleSpeciesFilter={toggleSpeciesFilter}
-            onMoveIngredient={moveIngredient}
             onToggle={toggleIngredient}
             onUpdate={updateIngredient}
             onCalculate={() => calculateFormula(visibleIngredients, requirement)}
@@ -1000,7 +899,9 @@ export default function HomePage() {
             nutrientKeys={nutrientKeys}
             onAddIngredient={addIngredient}
             onDeleteIngredient={deleteIngredient}
+            onMoveIngredient={moveIngredient}
             onUpdateName={updateIngredientName}
+            onUpdateSpecies={updateIngredientSpecies}
             onUpdateNutrient={updateNutrient}
           />
         )}
