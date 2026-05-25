@@ -7,10 +7,14 @@ type EditableIngredient = Ingredient & {
 
 type Props = {
   ingredients: EditableIngredient[];
+  hiddenIngredientCount: number;
+  speciesFilterEnabled: boolean;
   loading: boolean;
   requirementProfiles: Requirement[];
   activeRequirementIndex: number;
   onSelectRequirement: (index: number) => void;
+  onToggleSpeciesFilter: () => void;
+  onMoveIngredient: (id: string, direction: "up" | "down") => void;
   onToggle: (id: string) => void;
   onUpdate: (
     id: string,
@@ -25,10 +29,14 @@ type Props = {
 
 export default function FormulaTab({
   ingredients,
+  hiddenIngredientCount,
+  speciesFilterEnabled,
   loading,
   requirementProfiles,
   activeRequirementIndex,
   onSelectRequirement,
+  onToggleSpeciesFilter,
+  onMoveIngredient,
   onToggle,
   onUpdate,
   onCalculate,
@@ -70,6 +78,29 @@ export default function FormulaTab({
                 </select>
               </td>
             </tr>
+
+            <tr>
+              <td>Filtro por especie</td>
+              <td>
+                <button
+                  className="action secondary"
+                  type="button"
+                  onClick={onToggleSpeciesFilter}
+                  style={{ marginTop: 0 }}
+                >
+                  {speciesFilterEnabled
+                    ? "✅ Filtro activo"
+                    : "⬜ Filtro apagado"}
+                </button>
+
+                {speciesFilterEnabled && hiddenIngredientCount > 0 && (
+                  <div className="note" style={{ marginTop: 10 }}>
+                    Se ocultaron {hiddenIngredientCount} ingrediente(s) que no
+                    parecen corresponder al perfil activo.
+                  </div>
+                )}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -78,6 +109,7 @@ export default function FormulaTab({
         <table>
           <thead>
             <tr>
+              <th>Orden</th>
               <th>Usar</th>
               <th>Insumo</th>
               <th>Precio</th>
@@ -94,6 +126,26 @@ export default function FormulaTab({
                   opacity: ingredient.active ? 1 : 0.45
                 }}
               >
+                <td>
+                  <button
+                    type="button"
+                    className="tab-button"
+                    onClick={() => onMoveIngredient(ingredient.id, "up")}
+                    style={{ padding: "6px 8px", marginRight: 4 }}
+                  >
+                    ↑
+                  </button>
+
+                  <button
+                    type="button"
+                    className="tab-button"
+                    onClick={() => onMoveIngredient(ingredient.id, "down")}
+                    style={{ padding: "6px 8px" }}
+                  >
+                    ↓
+                  </button>
+                </td>
+
                 <td>
                   <input
                     className="checkbox-input"
