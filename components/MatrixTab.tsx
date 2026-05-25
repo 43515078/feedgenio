@@ -1,7 +1,10 @@
 import {
   nutrientLabels,
+  speciesKeys,
+  speciesLabels,
   type Ingredient,
-  type NutrientKey
+  type NutrientKey,
+  type SpeciesKey
 } from "@/lib/ingredients";
 
 type EditableIngredient = Ingredient & {
@@ -13,7 +16,9 @@ type Props = {
   nutrientKeys: NutrientKey[];
   onAddIngredient: () => void;
   onDeleteIngredient: (id: string) => void;
+  onMoveIngredient: (id: string, direction: "up" | "down") => void;
   onUpdateName: (id: string, name: string) => void;
+  onUpdateSpecies: (id: string, species: SpeciesKey, value: boolean) => void;
   onUpdateNutrient: (
     id: string,
     nutrient: NutrientKey,
@@ -68,6 +73,10 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
   ingredients.forEach((ingredient) => {
     if (!ingredient.active) return;
 
+    const selectedSpecies = speciesKeys.filter(
+      (species) => ingredient.species?.[species]
+    );
+
     const name = lowerText(ingredient.name);
     const energy = Number(ingredient.nutrients.energy || 0);
     const protein = Number(ingredient.nutrients.protein || 0);
@@ -105,6 +114,13 @@ function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
       alerts.push({
         level: "warning",
         message: "Hay un ingrediente activo sin nombre."
+      });
+    }
+
+    if (selectedSpecies.length === 0) {
+      alerts.push({
+        level: "warning",
+        message: `${ingredient.name}: no está marcado para ninguna especie, no aparecerá en Formular.`
       });
     }
 
@@ -218,7 +234,9 @@ export default function MatrixTab({
   nutrientKeys,
   onAddIngredient,
   onDeleteIngredient,
+  onMoveIngredient,
   onUpdateName,
+  onUpdateSpecies,
   onUpdateNutrient
 }: Props) {
   const matrixAlerts = buildMatrixAlerts(ingredients);
@@ -228,8 +246,8 @@ export default function MatrixTab({
       <h2>🧪 Matriz nutricional editable</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
-        Aquí puedes editar nombres y nutrientes. Todo se guarda automáticamente
-        en este navegador.
+        Aquí defines el orden maestro, las especies donde se usa cada insumo y
+        la matriz nutricional. Formular obedecerá esta configuración.
       </div>
 
       <div style={{ marginBottom: 14 }}>
@@ -257,7 +275,11 @@ export default function MatrixTab({
         <table>
           <thead>
             <tr>
+              <th>Orden</th>
               <th>Insumo</th>
+              {speciesKeys.map((species) => (
+                <th key={species}>{speciesLabels[species]}</th>
+              ))}
               {nutrientKeys.map((key) => (
                 <th key={key}>{nutrientLabels[key]}</th>
               ))}
@@ -269,6 +291,26 @@ export default function MatrixTab({
             {ingredients.map((ingredient) => (
               <tr key={ingredient.id}>
                 <td>
+                  <button
+                    type="button"
+                    className="tab-button"
+                    onClick={() => onMoveIngredient(ingredient.id, "up")}
+                    style={{ padding: "6px 8px", marginRight: 4 }}
+                  >
+                    ↑
+                  </button>
+
+                  <button
+                    type="button"
+                    className="tab-button"
+                    onClick={() => onMoveIngredient(ingredient.id, "down")}
+                    style={{ padding: "6px 8px" }}
+                  >
+                    ↓
+                  </button>
+                </td>
+
+                <td>
                   <input
                     className="price-input"
                     style={{ width: 180 }}
@@ -279,6 +321,23 @@ export default function MatrixTab({
                     }
                   />
                 </td>
+
+                {speciesKeys.map((species) => (
+                  <td key={species} style={{ textAlign: "center" }}>
+                    <input
+                      className="checkbox-input"
+                      type="checkbox"
+                      checked={Boolean(ingredient.species?.[species])}
+                      onChange={(event) =>
+                        onUpdateSpecies(
+                          ingredient.id,
+                          species,
+                          event.target.checked
+                        )
+                      }
+                    />
+                  </td>
+                ))}
 
                 {nutrientKeys.map((key) => (
                   <td key={key}>
