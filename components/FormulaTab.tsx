@@ -8,13 +8,10 @@ type EditableIngredient = Ingredient & {
 type Props = {
   ingredients: EditableIngredient[];
   hiddenIngredientCount: number;
-  speciesFilterEnabled: boolean;
   loading: boolean;
   requirementProfiles: Requirement[];
   activeRequirementIndex: number;
   onSelectRequirement: (index: number) => void;
-  onToggleSpeciesFilter: () => void;
-  onMoveIngredient: (id: string, direction: "up" | "down") => void;
   onToggle: (id: string) => void;
   onUpdate: (
     id: string,
@@ -30,13 +27,10 @@ type Props = {
 export default function FormulaTab({
   ingredients,
   hiddenIngredientCount,
-  speciesFilterEnabled,
   loading,
   requirementProfiles,
   activeRequirementIndex,
   onSelectRequirement,
-  onToggleSpeciesFilter,
-  onMoveIngredient,
   onToggle,
   onUpdate,
   onCalculate,
@@ -54,6 +48,13 @@ export default function FormulaTab({
       <div className="note" style={{ marginBottom: 14 }}>
         <strong>Requerimiento activo:</strong>{" "}
         {activeRequirement?.name || "Sin requerimiento"}
+        {hiddenIngredientCount > 0 && (
+          <>
+            <br />
+            Se ocultaron {hiddenIngredientCount} ingrediente(s) no asignados a
+            esta especie en la Matriz.
+          </>
+        )}
       </div>
 
       <div className="table-wrap" style={{ marginBottom: 14 }}>
@@ -78,137 +79,100 @@ export default function FormulaTab({
                 </select>
               </td>
             </tr>
-
-            <tr>
-              <td>Filtro por especie</td>
-              <td>
-                <button
-                  className="action secondary"
-                  type="button"
-                  onClick={onToggleSpeciesFilter}
-                  style={{ marginTop: 0 }}
-                >
-                  {speciesFilterEnabled
-                    ? "✅ Filtro activo"
-                    : "⬜ Filtro apagado"}
-                </button>
-
-                {speciesFilterEnabled && hiddenIngredientCount > 0 && (
-                  <div className="note" style={{ marginTop: 10 }}>
-                    Se ocultaron {hiddenIngredientCount} ingrediente(s) que no
-                    parecen corresponder al perfil activo.
-                  </div>
-                )}
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Orden</th>
-              <th>Usar</th>
-              <th>Insumo</th>
-              <th>Precio</th>
-              <th>Mín %</th>
-              <th>Máx %</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {ingredients.map((ingredient) => (
-              <tr
-                key={ingredient.id}
-                style={{
-                  opacity: ingredient.active ? 1 : 0.45
-                }}
-              >
-                <td>
-                  <button
-                    type="button"
-                    className="tab-button"
-                    onClick={() => onMoveIngredient(ingredient.id, "up")}
-                    style={{ padding: "6px 8px", marginRight: 4 }}
-                  >
-                    ↑
-                  </button>
-
-                  <button
-                    type="button"
-                    className="tab-button"
-                    onClick={() => onMoveIngredient(ingredient.id, "down")}
-                    style={{ padding: "6px 8px" }}
-                  >
-                    ↓
-                  </button>
-                </td>
-
-                <td>
-                  <input
-                    className="checkbox-input"
-                    type="checkbox"
-                    checked={ingredient.active}
-                    onChange={() => onToggle(ingredient.id)}
-                  />
-                </td>
-
-                <td>{ingredient.name}</td>
-
-                <td>
-                  <input
-                    className="price-input"
-                    type="number"
-                    step="0.01"
-                    value={ingredient.price}
-                    onChange={(event) =>
-                      onUpdate(
-                        ingredient.id,
-                        "price",
-                        Number(event.target.value || 0)
-                      )
-                    }
-                  />
-                </td>
-
-                <td>
-                  <input
-                    className="price-input"
-                    type="number"
-                    step="0.1"
-                    value={ingredient.min}
-                    onChange={(event) =>
-                      onUpdate(
-                        ingredient.id,
-                        "min",
-                        Number(event.target.value || 0)
-                      )
-                    }
-                  />
-                </td>
-
-                <td>
-                  <input
-                    className="price-input"
-                    type="number"
-                    step="0.1"
-                    value={ingredient.max}
-                    onChange={(event) =>
-                      onUpdate(
-                        ingredient.id,
-                        "max",
-                        Number(event.target.value || 0)
-                      )
-                    }
-                  />
-                </td>
+      {ingredients.length === 0 ? (
+        <div className="warning">
+          No hay ingredientes asignados a este tipo de requerimiento. Ve a
+          Matriz y marca qué especies usa cada ingrediente.
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Usar</th>
+                <th>Insumo</th>
+                <th>Precio</th>
+                <th>Mín %</th>
+                <th>Máx %</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+
+            <tbody>
+              {ingredients.map((ingredient) => (
+                <tr
+                  key={ingredient.id}
+                  style={{
+                    opacity: ingredient.active ? 1 : 0.45
+                  }}
+                >
+                  <td>
+                    <input
+                      className="checkbox-input"
+                      type="checkbox"
+                      checked={ingredient.active}
+                      onChange={() => onToggle(ingredient.id)}
+                    />
+                  </td>
+
+                  <td>{ingredient.name}</td>
+
+                  <td>
+                    <input
+                      className="price-input"
+                      type="number"
+                      step="0.01"
+                      value={ingredient.price}
+                      onChange={(event) =>
+                        onUpdate(
+                          ingredient.id,
+                          "price",
+                          Number(event.target.value || 0)
+                        )
+                      }
+                    />
+                  </td>
+
+                  <td>
+                    <input
+                      className="price-input"
+                      type="number"
+                      step="0.1"
+                      value={ingredient.min}
+                      onChange={(event) =>
+                        onUpdate(
+                          ingredient.id,
+                          "min",
+                          Number(event.target.value || 0)
+                        )
+                      }
+                    />
+                  </td>
+
+                  <td>
+                    <input
+                      className="price-input"
+                      type="number"
+                      step="0.1"
+                      value={ingredient.max}
+                      onChange={(event) =>
+                        onUpdate(
+                          ingredient.id,
+                          "max",
+                          Number(event.target.value || 0)
+                        )
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <button className="action" type="button" onClick={onCalculate}>
         {loading ? "Calculando..." : "Recalcular fórmula"}
