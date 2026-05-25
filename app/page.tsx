@@ -22,6 +22,12 @@ type EditableIngredient = Ingredient & {
   active: boolean;
 };
 
+type SavedCosting = {
+  productionCostPerKg: number;
+  bagCostPer50Kg: number;
+  marginPercent: number;
+};
+
 type SavedFormula = {
   id: string;
   name: string;
@@ -31,6 +37,7 @@ type SavedFormula = {
   result: FormulaResult;
   ingredientsSnapshot?: EditableIngredient[];
   requirementSnapshot?: Requirement;
+  costing?: SavedCosting;
 };
 
 type TabType = "formular" | "matrix" | "requirements" | "results" | "saved";
@@ -196,6 +203,14 @@ function normalizeRequirement(item: Partial<Requirement>): Requirement {
   };
 }
 
+function normalizeCosting(costing: Partial<SavedCosting> | undefined): SavedCosting {
+  return {
+    productionCostPerKg: numberOrDefault(costing?.productionCostPerKg, 0),
+    bagCostPer50Kg: numberOrDefault(costing?.bagCostPer50Kg, 0),
+    marginPercent: numberOrDefault(costing?.marginPercent, 0)
+  };
+}
+
 function createEmptyFormulaResult(message: string): FormulaResult {
   return {
     feasible: false,
@@ -210,6 +225,46 @@ function createEmptyFormulaResult(message: string): FormulaResult {
 
 function formatKg(value: number) {
   return Number(value).toFixed(3);
+}
+
+function formatMoney(value: number, decimals = 2) {
+  return Number(value).toFixed(decimals);
+}
+
+function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
+  const costing = normalizeCosting(formula.costing);
+
+  const costWithProductionPerKg =
+    formula.result.costPerKg + costing.productionCostPerKg;
+
+  const realCostPer50Kg =
+    costWithProductionPerKg * 50 + costing.bagCostPer50Kg;
+
+  const realCostPer100Kg =
+    costWithProductionPerKg * 100 + costing.bagCostPer50Kg * 2;
+
+  const realCostPerTon =
+    costWithProductionPerKg * 1000 + costing.bagCostPer50Kg * 20;
+
+  const salePer50Kg = realCostPer50Kg * (1 + costing.marginPercent / 100);
+  const salePerKg = salePer50Kg / 50;
+
+  const totalKg = 100 * multiplier;
+  const totalFormulaCost = formula.result.costPer100Kg * multiplier;
+  const totalRealCost = realCostPer100Kg * multiplier;
+
+  return {
+    costing,
+    costWithProductionPerKg,
+    realCostPer50Kg,
+    realCostPer100Kg,
+    realCostPerTon,
+    salePer50Kg,
+    salePerKg,
+    totalKg,
+    totalFormulaCost,
+    totalRealCost
+  };
 }
 
 export default function HomePage() {
@@ -312,7 +367,12 @@ export default function HomePage() {
     if (savedFormulasStorage) {
       try {
         const parsed = JSON.parse(savedFormulasStorage) as SavedFormula[];
-        setSavedFormulas(parsed);
+        setSavedFormulas(
+          parsed.map((formula) => ({
+            ...formula,
+            costing: normalizeCosting(formula.costing)
+          }))
+        );
       } catch {}
     }
 
@@ -493,7 +553,7 @@ export default function HomePage() {
     saveAll(ingredients, [defaultRequirement], 0);
   }
 
-  function saveCurrentFormula() {
+  function saveCurrentFormula(costing?: SavedCosting) {
     if (!result?.feasible) {
       window.alert("No hay fórmula válida para guardar.");
       return;
@@ -514,7 +574,8 @@ export default function HomePage() {
       requirementName: requirement.name,
       result,
       ingredientsSnapshot: ingredients,
-      requirementSnapshot: requirement
+      requirementSnapshot: requirement,
+      costing: normalizeCosting(costing)
     };
 
     const updated = [newFormula, ...savedFormulas];
@@ -645,15 +706,27 @@ export default function HomePage() {
 
   function buildSavedFormulaText(formula: SavedFormula) {
     const multiplier = getMultiplierNumber(formula);
-    const totalKg = 100 * multiplier;
-    const totalCost = formula.result.costPer100Kg * multiplier;
+    const costingData = calculateSavedCosting(formula, multiplier);
 
     const lines = [
       `FeedGenio - ${formula.name}`,
       `Perfil: ${formula.requirementName}`,
-      `Total mezcla: ${formatKg(totalKg)} kg`,
-      `Costo aprox: S/ ${totalCost.toFixed(2)}`,
+      `Total mezcla: ${formatKg(costingData.totalKg)} kg`,
+      `Costo fórmula: S/ ${formatMoney(costingData.totalFormulaCost, 2)}`,
+      `Costo real aprox: S/ ${formatMoney(costingData.totalRealCost, 2)}`,
       `Costo por kg: S/ ${formula.result.costPerKg.toFixed(3)}`,
+      `Costo real por kg: S/ ${formatMoney(
+        costingData.costWithProductionPerKg,
+        3
+      )}`,
+      `Costo real saco 50 kg: S/ ${formatMoney(
+        costingData.realCostPer50Kg,
+        2
+      )}`,
+      `Venta sugerida saco 50 kg: S/ ${formatMoney(
+        costingData.salePer50Kg,
+        2
+      )}`,
       "",
       "Ingredientes:"
     ];
@@ -794,11 +867,11 @@ export default function HomePage() {
             ) : (
               filteredSavedFormulas.map((formula) => {
                 const multiplier = getMultiplierNumber(formula);
-                const totalKg = 100 * multiplier;
-                const totalCost = formula.result.costPer100Kg * multiplier;
                 const canLoadToEditor =
                   Boolean(formula.ingredientsSnapshot) &&
                   Boolean(formula.requirementSnapshot);
+
+                const costingData = calculateSavedCosting(formula, multiplier);
 
                 return (
                   <div
@@ -861,12 +934,33 @@ export default function HomePage() {
                     />
 
                     <div className="note" style={{ marginTop: 10 }}>
-                      Total mezcla: <strong>{formatKg(totalKg)} kg</strong>
+                      Total mezcla:{" "}
+                      <strong>{formatKg(costingData.totalKg)} kg</strong>
                       <br />
-                      Costo aprox: <strong>S/ {totalCost.toFixed(2)}</strong>
+                      Costo fórmula:{" "}
+                      <strong>
+                        S/ {formatMoney(costingData.totalFormulaCost, 2)}
+                      </strong>
                       <br />
-                      Costo por kg:{" "}
-                      <strong>S/ {formula.result.costPerKg.toFixed(3)}</strong>
+                      Costo real aprox:{" "}
+                      <strong>
+                        S/ {formatMoney(costingData.totalRealCost, 2)}
+                      </strong>
+                      <br />
+                      Costo real kg:{" "}
+                      <strong>
+                        S/ {formatMoney(costingData.costWithProductionPerKg, 3)}
+                      </strong>
+                      <br />
+                      Costo real saco 50 kg:{" "}
+                      <strong>
+                        S/ {formatMoney(costingData.realCostPer50Kg, 2)}
+                      </strong>
+                      <br />
+                      Venta sugerida saco:{" "}
+                      <strong>
+                        S/ {formatMoney(costingData.salePer50Kg, 2)}
+                      </strong>
                     </div>
 
                     <div
