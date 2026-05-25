@@ -15,13 +15,30 @@ export type NutrientKey =
   | "chlorine"
   | "linoleicAcid";
 
+export type SpeciesKey = "layer" | "broiler" | "pig" | "guineaPig";
+
 export type Ingredient = {
   id: string;
   name: string;
   price: number;
   min: number;
   max: number;
+  species: Record<SpeciesKey, boolean>;
   nutrients: Record<NutrientKey, number>;
+};
+
+export const speciesKeys: SpeciesKey[] = [
+  "layer",
+  "broiler",
+  "pig",
+  "guineaPig"
+];
+
+export const speciesLabels: Record<SpeciesKey, string> = {
+  layer: "Ponedora",
+  broiler: "Pollo",
+  pig: "Cerdo",
+  guineaPig: "Cuy"
 };
 
 export const nutrientKeys: NutrientKey[] = [
@@ -78,6 +95,15 @@ export const nutrientFullLabels: Record<NutrientKey, string> = {
   linoleicAcid: "Ácido linoleico"
 };
 
+export function createAllSpecies(value = true): Record<SpeciesKey, boolean> {
+  return {
+    layer: value,
+    broiler: value,
+    pig: value,
+    guineaPig: value
+  };
+}
+
 export function createEmptyNutrients(): Record<NutrientKey, number> {
   return {
     energy: 0,
@@ -107,6 +133,7 @@ export function createEmptyIngredient(): Ingredient {
     price: 0,
     min: 0,
     max: 100,
+    species: createAllSpecies(true),
     nutrients: createEmptyNutrients()
   };
 }
@@ -118,6 +145,7 @@ export const defaultIngredients: Ingredient[] = [
     price: 1.32,
     min: 40,
     max: 70,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 3350,
       protein: 7.7,
@@ -142,6 +170,7 @@ export const defaultIngredients: Ingredient[] = [
     price: 1.7,
     min: 5,
     max: 35,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 2450,
       protein: 46,
@@ -166,6 +195,7 @@ export const defaultIngredients: Ingredient[] = [
     price: 3.5,
     min: 0,
     max: 5,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 8800,
       protein: 0,
@@ -188,8 +218,9 @@ export const defaultIngredients: Ingredient[] = [
     id: "carbonato",
     name: "Carbonato de calcio",
     price: 0.25,
-    min: 6,
+    min: 0,
     max: 11,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 0,
       protein: 0,
@@ -212,8 +243,9 @@ export const defaultIngredients: Ingredient[] = [
     id: "dcp",
     name: "Fosfato dicálcico",
     price: 2.8,
-    min: 0.5,
+    min: 0,
     max: 2.5,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 0,
       protein: 0,
@@ -236,8 +268,9 @@ export const defaultIngredients: Ingredient[] = [
     id: "sal",
     name: "Sal común",
     price: 0.6,
-    min: 0.2,
+    min: 0,
     max: 0.4,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 0,
       protein: 0,
@@ -262,6 +295,7 @@ export const defaultIngredients: Ingredient[] = [
     price: 18,
     min: 0,
     max: 0.35,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 0,
       protein: 0,
@@ -286,6 +320,7 @@ export const defaultIngredients: Ingredient[] = [
     price: 9,
     min: 0,
     max: 0.35,
+    species: createAllSpecies(true),
     nutrients: {
       energy: 0,
       protein: 0,
