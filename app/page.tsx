@@ -7,6 +7,7 @@ import {
   createEmptyIngredient,
   createEmptyNutrients,
   defaultIngredients,
+  nutrientKeys,
   speciesKeys,
   type Ingredient,
   type NutrientKey,
@@ -50,24 +51,6 @@ const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
 const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
 const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
 const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
-
-const nutrientKeys: NutrientKey[] = [
-  "energy",
-  "protein",
-  "lysine",
-  "methionine",
-  "metCys",
-  "threonine",
-  "tryptophan",
-  "arginine",
-  "isoleucine",
-  "valine",
-  "calcium",
-  "availablePhosphorus",
-  "sodium",
-  "chlorine",
-  "linoleicAcid"
-];
 
 function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
@@ -162,10 +145,55 @@ function normalizeRequirement(item: Partial<Requirement>): Requirement {
       defaultRequirement.arginineMax || 0
     ),
 
+    glycineSerine: numberOrDefault(
+      item.glycineSerine,
+      defaultRequirement.glycineSerine
+    ),
+    glycineSerineMax: numberOrDefault(
+      item.glycineSerineMax,
+      defaultRequirement.glycineSerineMax || 0
+    ),
+
+    histidine: numberOrDefault(item.histidine, defaultRequirement.histidine),
+    histidineMax: numberOrDefault(
+      item.histidineMax,
+      defaultRequirement.histidineMax || 0
+    ),
+
     isoleucine: numberOrDefault(item.isoleucine, defaultRequirement.isoleucine),
     isoleucineMax: numberOrDefault(
       item.isoleucineMax,
       defaultRequirement.isoleucineMax || 0
+    ),
+
+    leucine: numberOrDefault(item.leucine, defaultRequirement.leucine),
+    leucineMax: numberOrDefault(
+      item.leucineMax,
+      defaultRequirement.leucineMax || 0
+    ),
+
+    phenylalanine: numberOrDefault(
+      item.phenylalanine,
+      defaultRequirement.phenylalanine
+    ),
+    phenylalanineMax: numberOrDefault(
+      item.phenylalanineMax,
+      defaultRequirement.phenylalanineMax || 0
+    ),
+
+    tyrosine: numberOrDefault(item.tyrosine, defaultRequirement.tyrosine),
+    tyrosineMax: numberOrDefault(
+      item.tyrosineMax,
+      defaultRequirement.tyrosineMax || 0
+    ),
+
+    phenylalanineTyrosine: numberOrDefault(
+      item.phenylalanineTyrosine,
+      defaultRequirement.phenylalanineTyrosine
+    ),
+    phenylalanineTyrosineMax: numberOrDefault(
+      item.phenylalanineTyrosineMax,
+      defaultRequirement.phenylalanineTyrosineMax || 0
     ),
 
     valine: numberOrDefault(item.valine, defaultRequirement.valine),
@@ -482,7 +510,9 @@ export default function HomePage() {
   }
 
   function moveIngredient(id: string, direction: "up" | "down") {
-    const currentIndex = ingredients.findIndex((ingredient) => ingredient.id === id);
+    const currentIndex = ingredients.findIndex(
+      (ingredient) => ingredient.id === id
+    );
     if (currentIndex < 0) return;
 
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
@@ -1006,7 +1036,10 @@ export default function HomePage() {
                       inputMode="decimal"
                       value={getMultiplierText(formula)}
                       onChange={(event) =>
-                        updateFormulaMultiplierText(formula.id, event.target.value)
+                        updateFormulaMultiplierText(
+                          formula.id,
+                          event.target.value
+                        )
                       }
                       onBlur={() => finishMultiplierEdit(formula)}
                       onFocus={(event) => event.currentTarget.select()}
