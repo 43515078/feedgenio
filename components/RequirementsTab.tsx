@@ -1,4 +1,7 @@
-import { baseRequirementProfiles, type Requirement } from "@/lib/requirements";
+import {
+  baseRequirementProfiles,
+  type Requirement
+} from "@/lib/requirements";
 
 type Props = {
   requirement: Requirement;
@@ -24,96 +27,27 @@ type RequirementRow = {
 };
 
 const requirementRows: RequirementRow[] = [
-  {
-    label: "Energía",
-    minKey: "energy",
-    maxKey: "energyMax",
-    step: "1"
-  },
-  {
-    label: "Proteína",
-    minKey: "protein",
-    maxKey: "proteinMax",
-    step: "0.01"
-  },
-  {
-    label: "Lisina",
-    minKey: "lysine",
-    maxKey: "lysineMax",
-    step: "0.01"
-  },
-  {
-    label: "Metionina",
-    minKey: "methionine",
-    maxKey: "methionineMax",
-    step: "0.01"
-  },
-  {
-    label: "Met + Cist",
-    minKey: "metCys",
-    maxKey: "metCysMax",
-    step: "0.01"
-  },
-  {
-    label: "Treonina",
-    minKey: "threonine",
-    maxKey: "threonineMax",
-    step: "0.01"
-  },
-  {
-    label: "Triptófano",
-    minKey: "tryptophan",
-    maxKey: "tryptophanMax",
-    step: "0.01"
-  },
-  {
-    label: "Arginina",
-    minKey: "arginine",
-    maxKey: "arginineMax",
-    step: "0.01"
-  },
-  {
-    label: "Isoleucina",
-    minKey: "isoleucine",
-    maxKey: "isoleucineMax",
-    step: "0.01"
-  },
-  {
-    label: "Valina",
-    minKey: "valine",
-    maxKey: "valineMax",
-    step: "0.01"
-  },
-  {
-    label: "Calcio",
-    minKey: "calcium",
-    maxKey: "calciumMax",
-    step: "0.01"
-  },
-  {
-    label: "Fósforo disp",
-    minKey: "availablePhosphorus",
-    maxKey: "availablePhosphorusMax",
-    step: "0.01"
-  },
-  {
-    label: "Sodio",
-    minKey: "sodium",
-    maxKey: "sodiumMax",
-    step: "0.01"
-  },
-  {
-    label: "Cloro",
-    minKey: "chlorine",
-    maxKey: "chlorineMax",
-    step: "0.01"
-  },
-  {
-    label: "Ácido linoleico",
-    minKey: "linoleicAcid",
-    maxKey: "linoleicAcidMax",
-    step: "0.01"
-  }
+  { label: "Energía", minKey: "energy", maxKey: "energyMax", step: "1" },
+  { label: "Proteína", minKey: "protein", maxKey: "proteinMax", step: "0.01" },
+  { label: "Lisina", minKey: "lysine", maxKey: "lysineMax", step: "0.01" },
+  { label: "Metionina", minKey: "methionine", maxKey: "methionineMax", step: "0.01" },
+  { label: "Met + Cist", minKey: "metCys", maxKey: "metCysMax", step: "0.01" },
+  { label: "Treonina", minKey: "threonine", maxKey: "threonineMax", step: "0.01" },
+  { label: "Triptófano", minKey: "tryptophan", maxKey: "tryptophanMax", step: "0.01" },
+  { label: "Arginina", minKey: "arginine", maxKey: "arginineMax", step: "0.01" },
+  { label: "Glicina + Serina", minKey: "glycineSerine", maxKey: "glycineSerineMax", step: "0.01" },
+  { label: "Histidina", minKey: "histidine", maxKey: "histidineMax", step: "0.01" },
+  { label: "Isoleucina", minKey: "isoleucine", maxKey: "isoleucineMax", step: "0.01" },
+  { label: "Leucina", minKey: "leucine", maxKey: "leucineMax", step: "0.01" },
+  { label: "Fenilalanina", minKey: "phenylalanine", maxKey: "phenylalanineMax", step: "0.01" },
+  { label: "Tirosina", minKey: "tyrosine", maxKey: "tyrosineMax", step: "0.01" },
+  { label: "Fen + Tir", minKey: "phenylalanineTyrosine", maxKey: "phenylalanineTyrosineMax", step: "0.01" },
+  { label: "Valina", minKey: "valine", maxKey: "valineMax", step: "0.01" },
+  { label: "Calcio", minKey: "calcium", maxKey: "calciumMax", step: "0.01" },
+  { label: "Fósforo disp", minKey: "availablePhosphorus", maxKey: "availablePhosphorusMax", step: "0.01" },
+  { label: "Sodio", minKey: "sodium", maxKey: "sodiumMax", step: "0.01" },
+  { label: "Cloro", minKey: "chlorine", maxKey: "chlorineMax", step: "0.01" },
+  { label: "Ácido linoleico", minKey: "linoleicAcid", maxKey: "linoleicAcidMax", step: "0.01" }
 ];
 
 function getNumberValue(value: Requirement[keyof Requirement]) {
@@ -251,34 +185,17 @@ export default function RequirementsTab({
         Nuevo perfil vacío
       </button>
 
-      <button
-        className="action secondary"
-        type="button"
-        onClick={onDuplicateRequirement}
-      >
+      <button className="action secondary" type="button" onClick={onDuplicateRequirement}>
         Duplicar perfil
       </button>
 
-      <button
-        className="action secondary"
-        type="button"
-        onClick={onDeleteRequirement}
-      >
+      <button className="action secondary" type="button" onClick={onDeleteRequirement}>
         Eliminar perfil activo
       </button>
 
-      <button
-        className="action secondary"
-        type="button"
-        onClick={onResetRequirement}
-      >
+      <button className="action secondary" type="button" onClick={onResetRequirement}>
         Reiniciar perfiles
       </button>
-
-      <div className="note" style={{ marginTop: 14 }}>
-        Los perfiles base son puntos de partida. Luego los afinamos con tus
-        valores reales según especie, fase, clima e insumos disponibles.
-      </div>
     </section>
   );
 }
