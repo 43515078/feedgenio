@@ -7,7 +7,13 @@ export type NutrientKey =
   | "threonine"
   | "tryptophan"
   | "arginine"
+  | "glycineSerine"
+  | "histidine"
   | "isoleucine"
+  | "leucine"
+  | "phenylalanine"
+  | "tyrosine"
+  | "phenylalanineTyrosine"
   | "valine"
   | "calcium"
   | "availablePhosphorus"
@@ -50,7 +56,13 @@ export const nutrientKeys: NutrientKey[] = [
   "threonine",
   "tryptophan",
   "arginine",
+  "glycineSerine",
+  "histidine",
   "isoleucine",
+  "leucine",
+  "phenylalanine",
+  "tyrosine",
+  "phenylalanineTyrosine",
   "valine",
   "calcium",
   "availablePhosphorus",
@@ -68,7 +80,13 @@ export const nutrientLabels: Record<NutrientKey, string> = {
   threonine: "Tre",
   tryptophan: "Trip",
   arginine: "Arg",
+  glycineSerine: "Gli+Ser",
+  histidine: "His",
   isoleucine: "Iso",
+  leucine: "Leu",
+  phenylalanine: "Fen",
+  tyrosine: "Tir",
+  phenylalanineTyrosine: "Fen+Tir",
   valine: "Val",
   calcium: "Ca",
   availablePhosphorus: "P disp",
@@ -86,7 +104,13 @@ export const nutrientFullLabels: Record<NutrientKey, string> = {
   threonine: "Treonina",
   tryptophan: "Triptófano",
   arginine: "Arginina",
+  glycineSerine: "Glicina + Serina",
+  histidine: "Histidina",
   isoleucine: "Isoleucina",
+  leucine: "Leucina",
+  phenylalanine: "Fenilalanina",
+  tyrosine: "Tirosina",
+  phenylalanineTyrosine: "Fenilalanina + Tirosina",
   valine: "Valina",
   calcium: "Calcio",
   availablePhosphorus: "Fósforo disponible",
@@ -105,23 +129,13 @@ export function createAllSpecies(value = true): Record<SpeciesKey, boolean> {
 }
 
 export function createEmptyNutrients(): Record<NutrientKey, number> {
-  return {
-    energy: 0,
-    protein: 0,
-    lysine: 0,
-    methionine: 0,
-    metCys: 0,
-    threonine: 0,
-    tryptophan: 0,
-    arginine: 0,
-    isoleucine: 0,
-    valine: 0,
-    calcium: 0,
-    availablePhosphorus: 0,
-    sodium: 0,
-    chlorine: 0,
-    linoleicAcid: 0
-  };
+  const nutrients = {} as Record<NutrientKey, number>;
+
+  for (const key of nutrientKeys) {
+    nutrients[key] = 0;
+  }
+
+  return nutrients;
 }
 
 export function createEmptyIngredient(): Ingredient {
@@ -155,7 +169,13 @@ export const defaultIngredients: Ingredient[] = [
       threonine: 0.29,
       tryptophan: 0.06,
       arginine: 0.37,
+      glycineSerine: 0.58,
+      histidine: 0.2,
       isoleucine: 0.28,
+      leucine: 0.93,
+      phenylalanine: 0.35,
+      tyrosine: 0.24,
+      phenylalanineTyrosine: 0.59,
       valine: 0.37,
       calcium: 0.03,
       availablePhosphorus: 0.08,
@@ -180,7 +200,13 @@ export const defaultIngredients: Ingredient[] = [
       threonine: 1.78,
       tryptophan: 0.62,
       arginine: 3.35,
+      glycineSerine: 4.35,
+      histidine: 1.18,
       isoleucine: 2.1,
+      leucine: 3.55,
+      phenylalanine: 2.25,
+      tyrosine: 1.55,
+      phenylalanineTyrosine: 3.8,
       valine: 2.25,
       calcium: 0.3,
       availablePhosphorus: 0.29,
@@ -197,20 +223,8 @@ export const defaultIngredients: Ingredient[] = [
     max: 5,
     species: createAllSpecies(true),
     nutrients: {
+      ...createEmptyNutrients(),
       energy: 8800,
-      protein: 0,
-      lysine: 0,
-      methionine: 0,
-      metCys: 0,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
-      calcium: 0,
-      availablePhosphorus: 0,
-      sodium: 0,
-      chlorine: 0,
       linoleicAcid: 50
     }
   },
@@ -222,21 +236,8 @@ export const defaultIngredients: Ingredient[] = [
     max: 11,
     species: createAllSpecies(true),
     nutrients: {
-      energy: 0,
-      protein: 0,
-      lysine: 0,
-      methionine: 0,
-      metCys: 0,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
-      calcium: 38,
-      availablePhosphorus: 0,
-      sodium: 0,
-      chlorine: 0,
-      linoleicAcid: 0
+      ...createEmptyNutrients(),
+      calcium: 38
     }
   },
   {
@@ -247,21 +248,9 @@ export const defaultIngredients: Ingredient[] = [
     max: 2.5,
     species: createAllSpecies(true),
     nutrients: {
-      energy: 0,
-      protein: 0,
-      lysine: 0,
-      methionine: 0,
-      metCys: 0,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
+      ...createEmptyNutrients(),
       calcium: 23,
-      availablePhosphorus: 18,
-      sodium: 0,
-      chlorine: 0,
-      linoleicAcid: 0
+      availablePhosphorus: 18
     }
   },
   {
@@ -272,21 +261,9 @@ export const defaultIngredients: Ingredient[] = [
     max: 0.4,
     species: createAllSpecies(true),
     nutrients: {
-      energy: 0,
-      protein: 0,
-      lysine: 0,
-      methionine: 0,
-      metCys: 0,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
-      calcium: 0,
-      availablePhosphorus: 0,
+      ...createEmptyNutrients(),
       sodium: 39,
-      chlorine: 60,
-      linoleicAcid: 0
+      chlorine: 60
     }
   },
   {
@@ -297,21 +274,9 @@ export const defaultIngredients: Ingredient[] = [
     max: 0.35,
     species: createAllSpecies(true),
     nutrients: {
-      energy: 0,
-      protein: 0,
-      lysine: 0,
+      ...createEmptyNutrients(),
       methionine: 99,
-      metCys: 99,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
-      calcium: 0,
-      availablePhosphorus: 0,
-      sodium: 0,
-      chlorine: 0,
-      linoleicAcid: 0
+      metCys: 99
     }
   },
   {
@@ -322,21 +287,9 @@ export const defaultIngredients: Ingredient[] = [
     max: 0.35,
     species: createAllSpecies(true),
     nutrients: {
-      energy: 0,
-      protein: 0,
+      ...createEmptyNutrients(),
       lysine: 78,
-      methionine: 0,
-      metCys: 0,
-      threonine: 0,
-      tryptophan: 0,
-      arginine: 0,
-      isoleucine: 0,
-      valine: 0,
-      calcium: 0,
-      availablePhosphorus: 0,
-      sodium: 0,
-      chlorine: 19,
-      linoleicAcid: 0
+      chlorine: 19
     }
   }
 ];
