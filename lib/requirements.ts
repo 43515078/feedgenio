@@ -25,8 +25,26 @@ export type Requirement = {
   arginine: number;
   arginineMax?: number;
 
+  glycineSerine: number;
+  glycineSerineMax?: number;
+
+  histidine: number;
+  histidineMax?: number;
+
   isoleucine: number;
   isoleucineMax?: number;
+
+  leucine: number;
+  leucineMax?: number;
+
+  phenylalanine: number;
+  phenylalanineMax?: number;
+
+  tyrosine: number;
+  tyrosineMax?: number;
+
+  phenylalanineTyrosine: number;
+  phenylalanineTyrosineMax?: number;
 
   valine: number;
   valineMax?: number;
@@ -65,8 +83,20 @@ export const defaultRequirement: Requirement = {
   tryptophanMax: 0.3,
   arginine: 0.88,
   arginineMax: 1.2,
+  glycineSerine: 0,
+  glycineSerineMax: 0,
+  histidine: 0.25,
+  histidineMax: 0.45,
   isoleucine: 0.7,
   isoleucineMax: 0.95,
+  leucine: 1.1,
+  leucineMax: 1.8,
+  phenylalanine: 0.65,
+  phenylalanineMax: 1,
+  tyrosine: 0.45,
+  tyrosineMax: 0.8,
+  phenylalanineTyrosine: 1.1,
+  phenylalanineTyrosineMax: 1.7,
   valine: 0.79,
   valineMax: 1.05,
   calcium: 3.7,
@@ -81,74 +111,30 @@ export const defaultRequirement: Requirement = {
   linoleicAcidMax: 2.5
 };
 
+function withDefaults(profile: Partial<Requirement> & { name: string }): Requirement {
+  return {
+    ...defaultRequirement,
+    ...profile
+  };
+}
+
 export const baseRequirementProfiles: Requirement[] = [
-  {
-    name: "Ponedora producción",
-    energy: 2850,
-    energyMax: 3000,
-    protein: 16,
-    proteinMax: 18.5,
-    lysine: 0.87,
-    lysineMax: 1.1,
-    methionine: 0.43,
-    methionineMax: 0.55,
-    metCys: 0.82,
-    metCysMax: 1,
-    threonine: 0.65,
-    threonineMax: 0.85,
-    tryptophan: 0.21,
-    tryptophanMax: 0.3,
-    arginine: 0.88,
-    arginineMax: 1.2,
-    isoleucine: 0.7,
-    isoleucineMax: 0.95,
-    valine: 0.79,
-    valineMax: 1.05,
-    calcium: 3.7,
-    calciumMax: 4.2,
-    availablePhosphorus: 0.38,
-    availablePhosphorusMax: 0.5,
-    sodium: 0.16,
-    sodiumMax: 0.23,
-    chlorine: 0.16,
-    chlorineMax: 0.25,
-    linoleicAcid: 1.8,
-    linoleicAcidMax: 2.5
-  },
-  {
+  withDefaults({
+    name: "Ponedora producción"
+  }),
+  withDefaults({
     name: "Ponedora verano",
     energy: 3150,
     energyMax: 3250,
     protein: 16.5,
-    proteinMax: 18.5,
-    lysine: 0.87,
-    lysineMax: 1.1,
-    methionine: 0.43,
-    methionineMax: 0.55,
-    metCys: 0.82,
-    metCysMax: 1,
-    threonine: 0.65,
-    threonineMax: 0.85,
-    tryptophan: 0.21,
-    tryptophanMax: 0.3,
-    arginine: 0.88,
-    arginineMax: 1.2,
-    isoleucine: 0.7,
-    isoleucineMax: 0.95,
-    valine: 0.79,
-    valineMax: 1.05,
-    calcium: 3.64,
-    calciumMax: 4.2,
-    availablePhosphorus: 0.39,
-    availablePhosphorusMax: 0.5,
     sodium: 0.2,
     sodiumMax: 0.25,
-    chlorine: 0.16,
-    chlorineMax: 0.25,
+    calcium: 3.64,
+    availablePhosphorus: 0.39,
     linoleicAcid: 1.9,
     linoleicAcidMax: 2.6
-  },
-  {
+  }),
+  withDefaults({
     name: "Cobb 500 inicio",
     energy: 3000,
     energyMax: 3100,
@@ -166,8 +152,20 @@ export const baseRequirementProfiles: Requirement[] = [
     tryptophanMax: 0.32,
     arginine: 1.35,
     arginineMax: 1.65,
+    glycineSerine: 1.55,
+    glycineSerineMax: 2.3,
+    histidine: 0.42,
+    histidineMax: 0.65,
     isoleucine: 0.85,
     isoleucineMax: 1.05,
+    leucine: 1.4,
+    leucineMax: 2.3,
+    phenylalanine: 0.75,
+    phenylalanineMax: 1.2,
+    tyrosine: 0.6,
+    tyrosineMax: 1,
+    phenylalanineTyrosine: 1.35,
+    phenylalanineTyrosineMax: 2,
     valine: 0.95,
     valineMax: 1.15,
     calcium: 0.95,
@@ -180,8 +178,8 @@ export const baseRequirementProfiles: Requirement[] = [
     chlorineMax: 0.28,
     linoleicAcid: 1.2,
     linoleicAcidMax: 2.5
-  },
-  {
+  }),
+  withDefaults({
     name: "Cobb 500 crecimiento",
     energy: 3100,
     energyMax: 3200,
@@ -199,8 +197,20 @@ export const baseRequirementProfiles: Requirement[] = [
     tryptophanMax: 0.3,
     arginine: 1.22,
     arginineMax: 1.5,
+    glycineSerine: 1.4,
+    glycineSerineMax: 2.1,
+    histidine: 0.38,
+    histidineMax: 0.6,
     isoleucine: 0.78,
     isoleucineMax: 1,
+    leucine: 1.28,
+    leucineMax: 2.15,
+    phenylalanine: 0.7,
+    phenylalanineMax: 1.15,
+    tyrosine: 0.55,
+    tyrosineMax: 0.95,
+    phenylalanineTyrosine: 1.25,
+    phenylalanineTyrosineMax: 1.9,
     valine: 0.86,
     valineMax: 1.1,
     calcium: 0.85,
@@ -213,8 +223,8 @@ export const baseRequirementProfiles: Requirement[] = [
     chlorineMax: 0.28,
     linoleicAcid: 1.1,
     linoleicAcidMax: 2.5
-  },
-  {
+  }),
+  withDefaults({
     name: "Cobb 500 engorde",
     energy: 3200,
     energyMax: 3300,
@@ -232,8 +242,20 @@ export const baseRequirementProfiles: Requirement[] = [
     tryptophanMax: 0.28,
     arginine: 1.1,
     arginineMax: 1.4,
+    glycineSerine: 1.25,
+    glycineSerineMax: 2,
+    histidine: 0.34,
+    histidineMax: 0.55,
     isoleucine: 0.72,
     isoleucineMax: 0.95,
+    leucine: 1.18,
+    leucineMax: 2,
+    phenylalanine: 0.65,
+    phenylalanineMax: 1.1,
+    tyrosine: 0.5,
+    tyrosineMax: 0.9,
+    phenylalanineTyrosine: 1.15,
+    phenylalanineTyrosineMax: 1.8,
     valine: 0.8,
     valineMax: 1,
     calcium: 0.78,
@@ -246,8 +268,8 @@ export const baseRequirementProfiles: Requirement[] = [
     chlorineMax: 0.26,
     linoleicAcid: 1,
     linoleicAcidMax: 2.3
-  },
-  {
+  }),
+  withDefaults({
     name: "Cerdo crecimiento",
     energy: 3250,
     energyMax: 3400,
@@ -265,8 +287,20 @@ export const baseRequirementProfiles: Requirement[] = [
     tryptophanMax: 0.28,
     arginine: 0.75,
     arginineMax: 1.2,
+    glycineSerine: 0,
+    glycineSerineMax: 0,
+    histidine: 0.36,
+    histidineMax: 0.6,
     isoleucine: 0.6,
     isoleucineMax: 0.85,
+    leucine: 1.05,
+    leucineMax: 1.8,
+    phenylalanine: 0.6,
+    phenylalanineMax: 1,
+    tyrosine: 0.45,
+    tyrosineMax: 0.85,
+    phenylalanineTyrosine: 1.05,
+    phenylalanineTyrosineMax: 1.6,
     valine: 0.7,
     valineMax: 0.95,
     calcium: 0.75,
@@ -279,8 +313,8 @@ export const baseRequirementProfiles: Requirement[] = [
     chlorineMax: 0.28,
     linoleicAcid: 1,
     linoleicAcidMax: 2.5
-  },
-  {
+  }),
+  withDefaults({
     name: "Cerdo engorde",
     energy: 3250,
     energyMax: 3400,
@@ -298,8 +332,20 @@ export const baseRequirementProfiles: Requirement[] = [
     tryptophanMax: 0.25,
     arginine: 0.65,
     arginineMax: 1.1,
+    glycineSerine: 0,
+    glycineSerineMax: 0,
+    histidine: 0.3,
+    histidineMax: 0.55,
     isoleucine: 0.5,
     isoleucineMax: 0.75,
+    leucine: 0.9,
+    leucineMax: 1.6,
+    phenylalanine: 0.5,
+    phenylalanineMax: 0.9,
+    tyrosine: 0.38,
+    tyrosineMax: 0.75,
+    phenylalanineTyrosine: 0.88,
+    phenylalanineTyrosineMax: 1.45,
     valine: 0.6,
     valineMax: 0.85,
     calcium: 0.65,
@@ -312,8 +358,8 @@ export const baseRequirementProfiles: Requirement[] = [
     chlorineMax: 0.26,
     linoleicAcid: 0.8,
     linoleicAcidMax: 2.3
-  },
-  {
+  }),
+  withDefaults({
     name: "Cuy engorde",
     energy: 2800,
     energyMax: 3000,
@@ -331,8 +377,20 @@ export const baseRequirementProfiles: Requirement[] = [
     tryptophanMax: 0.25,
     arginine: 0.8,
     arginineMax: 1.2,
+    glycineSerine: 0,
+    glycineSerineMax: 0,
+    histidine: 0.28,
+    histidineMax: 0.5,
     isoleucine: 0.55,
     isoleucineMax: 0.8,
+    leucine: 0.95,
+    leucineMax: 1.6,
+    phenylalanine: 0.55,
+    phenylalanineMax: 0.95,
+    tyrosine: 0.4,
+    tyrosineMax: 0.75,
+    phenylalanineTyrosine: 0.95,
+    phenylalanineTyrosineMax: 1.5,
     valine: 0.62,
     valineMax: 0.9,
     calcium: 0.8,
@@ -345,56 +403,5 @@ export const baseRequirementProfiles: Requirement[] = [
     chlorineMax: 0.28,
     linoleicAcid: 0.8,
     linoleicAcidMax: 2.3
-  }
-];
-
-export const requirementFields: Array<{
-  key: keyof Omit<Requirement, "name">;
-  label: string;
-  step: string;
-}> = [
-  { key: "energy", label: "Energía mín", step: "1" },
-  { key: "energyMax", label: "Energía máx", step: "1" },
-
-  { key: "protein", label: "Proteína mín", step: "0.01" },
-  { key: "proteinMax", label: "Proteína máx", step: "0.01" },
-
-  { key: "lysine", label: "Lisina mín", step: "0.01" },
-  { key: "lysineMax", label: "Lisina máx", step: "0.01" },
-
-  { key: "methionine", label: "Metionina mín", step: "0.01" },
-  { key: "methionineMax", label: "Metionina máx", step: "0.01" },
-
-  { key: "metCys", label: "Met + Cist mín", step: "0.01" },
-  { key: "metCysMax", label: "Met + Cist máx", step: "0.01" },
-
-  { key: "threonine", label: "Treonina mín", step: "0.01" },
-  { key: "threonineMax", label: "Treonina máx", step: "0.01" },
-
-  { key: "tryptophan", label: "Triptófano mín", step: "0.01" },
-  { key: "tryptophanMax", label: "Triptófano máx", step: "0.01" },
-
-  { key: "arginine", label: "Arginina mín", step: "0.01" },
-  { key: "arginineMax", label: "Arginina máx", step: "0.01" },
-
-  { key: "isoleucine", label: "Isoleucina mín", step: "0.01" },
-  { key: "isoleucineMax", label: "Isoleucina máx", step: "0.01" },
-
-  { key: "valine", label: "Valina mín", step: "0.01" },
-  { key: "valineMax", label: "Valina máx", step: "0.01" },
-
-  { key: "calcium", label: "Calcio mín", step: "0.01" },
-  { key: "calciumMax", label: "Calcio máx", step: "0.01" },
-
-  { key: "availablePhosphorus", label: "Fósforo disp mín", step: "0.01" },
-  { key: "availablePhosphorusMax", label: "Fósforo disp máx", step: "0.01" },
-
-  { key: "sodium", label: "Sodio mín", step: "0.01" },
-  { key: "sodiumMax", label: "Sodio máx", step: "0.01" },
-
-  { key: "chlorine", label: "Cloro mín", step: "0.01" },
-  { key: "chlorineMax", label: "Cloro máx", step: "0.01" },
-
-  { key: "linoleicAcid", label: "Ácido linoleico mín", step: "0.01" },
-  { key: "linoleicAcidMax", label: "Ácido linoleico máx", step: "0.01" }
+  })
 ];
