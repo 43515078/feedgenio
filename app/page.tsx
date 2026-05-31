@@ -742,16 +742,12 @@ export default function HomePage() {
   }
 
   function loadSavedFormulaToEditor(formula: SavedFormula) {
-    if (!formula.ingredientsSnapshot || !formula.requirementSnapshot) {
+    if (!formula.requirementSnapshot) {
       window.alert(
         "Esta fórmula fue guardada antes de activar la carga al editor. Vuelve a guardarla desde Resultados para poder cargarla."
       );
       return;
     }
-
-    const loadedIngredients = normalizeSavedIngredients(
-      formula.ingredientsSnapshot
-    );
 
     const loadedRequirement: Requirement = {
       ...normalizeRequirement(formula.requirementSnapshot),
@@ -761,9 +757,12 @@ export default function HomePage() {
     const updatedProfiles = [...requirementProfiles, loadedRequirement];
     const newIndex = updatedProfiles.length - 1;
 
-    saveAll(loadedIngredients, updatedProfiles, newIndex);
+    saveAll(ingredients, updatedProfiles, newIndex);
 
-    window.alert("Fórmula cargada al editor.");
+    window.alert(
+      "Fórmula cargada al editor. Tus ingredientes actuales se conservaron."
+    );
+
     setActiveTab("formular");
   }
 
@@ -980,10 +979,7 @@ export default function HomePage() {
             ) : (
               filteredSavedFormulas.map((formula) => {
                 const multiplier = getMultiplierNumber(formula);
-                const canLoadToEditor =
-                  Boolean(formula.ingredientsSnapshot) &&
-                  Boolean(formula.requirementSnapshot);
-
+                const canLoadToEditor = Boolean(formula.requirementSnapshot);
                 const costingData = calculateSavedCosting(formula, multiplier);
 
                 return (
@@ -1015,7 +1011,7 @@ export default function HomePage() {
                       {!canLoadToEditor && (
                         <>
                           <br />
-                          ⚠️ Fórmula antigua: no tiene copia editable.
+                          ⚠️ Fórmula antigua: no tiene requerimiento editable.
                         </>
                       )}
                     </div>
