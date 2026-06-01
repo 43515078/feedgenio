@@ -741,29 +741,14 @@ export default function HomePage() {
     saveSavedFormulas([copy, ...savedFormulas]);
   }
 
-  function loadSavedFormulaToEditor(formula: SavedFormula) {
-    if (!formula.requirementSnapshot) {
-      window.alert(
-        "Esta fórmula fue guardada antes de activar la carga al editor. Vuelve a guardarla desde Resultados para poder cargarla."
-      );
-      return;
-    }
-
-    const loadedRequirement: Requirement = {
-      ...normalizeRequirement(formula.requirementSnapshot),
-      name: `${formula.requirementSnapshot.name} cargada`
-    };
-
-    const updatedProfiles = [...requirementProfiles, loadedRequirement];
-    const newIndex = updatedProfiles.length - 1;
-
-    saveAll(ingredients, updatedProfiles, newIndex);
+  function viewSavedFormula(formula: SavedFormula) {
+    setResult(formula.result);
 
     window.alert(
-      "Fórmula cargada al editor. Tus ingredientes actuales se conservaron."
+      "Fórmula abierta en resultados. No se modificó la matriz ni los requerimientos."
     );
 
-    setActiveTab("formular");
+    setActiveTab("results");
   }
 
   function getMultiplierText(formula: SavedFormula) {
@@ -979,7 +964,6 @@ export default function HomePage() {
             ) : (
               filteredSavedFormulas.map((formula) => {
                 const multiplier = getMultiplierNumber(formula);
-                const canLoadToEditor = Boolean(formula.requirementSnapshot);
                 const costingData = calculateSavedCosting(formula, multiplier);
 
                 return (
@@ -1008,12 +992,6 @@ export default function HomePage() {
                       <br />
                       Guardada:{" "}
                       {new Date(formula.createdAt).toLocaleDateString()}
-                      {!canLoadToEditor && (
-                        <>
-                          <br />
-                          ⚠️ Fórmula antigua: no tiene requerimiento editable.
-                        </>
-                      )}
                     </div>
 
                     <label
@@ -1128,9 +1106,9 @@ export default function HomePage() {
                     <button
                       className="action secondary"
                       type="button"
-                      onClick={() => loadSavedFormulaToEditor(formula)}
+                      onClick={() => viewSavedFormula(formula)}
                     >
-                      🔁 Cargar al editor
+                      👁️ Ver fórmula guardada
                     </button>
 
                     <button
