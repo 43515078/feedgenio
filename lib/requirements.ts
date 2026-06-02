@@ -1,5 +1,8 @@
+import type { SpeciesKey } from "./ingredients";
+
 export type Requirement = {
   name: string;
+  species: SpeciesKey;
 
   energy: number;
   energyMax?: number;
@@ -67,6 +70,7 @@ export type Requirement = {
 
 export const defaultRequirement: Requirement = {
   name: "Ponedora en producción",
+  species: "layer",
   energy: 2850,
   energyMax: 3000,
   protein: 16,
@@ -120,10 +124,12 @@ function withDefaults(profile: Partial<Requirement> & { name: string }): Require
 
 export const baseRequirementProfiles: Requirement[] = [
   withDefaults({
-    name: "Ponedora producción"
+    name: "Ponedora producción",
+    species: "layer"
   }),
   withDefaults({
     name: "Ponedora verano",
+    species: "layer",
     energy: 3150,
     energyMax: 3250,
     protein: 16.5,
@@ -136,6 +142,7 @@ export const baseRequirementProfiles: Requirement[] = [
   }),
   withDefaults({
     name: "Cobb 500 inicio",
+    species: "broiler",
     energy: 3000,
     energyMax: 3100,
     protein: 22,
@@ -181,6 +188,7 @@ export const baseRequirementProfiles: Requirement[] = [
   }),
   withDefaults({
     name: "Cobb 500 crecimiento",
+    species: "broiler",
     energy: 3100,
     energyMax: 3200,
     protein: 20,
@@ -226,6 +234,7 @@ export const baseRequirementProfiles: Requirement[] = [
   }),
   withDefaults({
     name: "Cobb 500 engorde",
+    species: "broiler",
     energy: 3200,
     energyMax: 3300,
     protein: 18.5,
@@ -271,6 +280,7 @@ export const baseRequirementProfiles: Requirement[] = [
   }),
   withDefaults({
     name: "Cerdo crecimiento",
+    species: "pig",
     energy: 3250,
     energyMax: 3400,
     protein: 18,
@@ -316,6 +326,7 @@ export const baseRequirementProfiles: Requirement[] = [
   }),
   withDefaults({
     name: "Cerdo engorde",
+    species: "pig",
     energy: 3250,
     energyMax: 3400,
     protein: 16,
@@ -361,6 +372,7 @@ export const baseRequirementProfiles: Requirement[] = [
   }),
   withDefaults({
     name: "Cuy engorde",
+    species: "guineaPig",
     energy: 2800,
     energyMax: 3000,
     protein: 17,
