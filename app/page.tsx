@@ -59,31 +59,6 @@ function numberOrDefault(value: unknown, fallback: number) {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
-function normalizeLimits(
-  limits: Partial<Record<SpeciesKey, Partial<IngredientLimit>>> | undefined,
-  fallbackMin: number,
-  fallbackMax: number
-): Record<SpeciesKey, IngredientLimit> {
-  return {
-    layer: {
-      min: numberOrDefault(limits?.layer?.min, fallbackMin),
-      max: numberOrDefault(limits?.layer?.max, fallbackMax)
-    },
-    broiler: {
-      min: numberOrDefault(limits?.broiler?.min, fallbackMin),
-      max: numberOrDefault(limits?.broiler?.max, fallbackMax)
-    },
-    pig: {
-      min: numberOrDefault(limits?.pig?.min, fallbackMin),
-      max: numberOrDefault(limits?.pig?.max, fallbackMax)
-    },
-    guineaPig: {
-      min: numberOrDefault(limits?.guineaPig?.min, fallbackMin),
-      max: numberOrDefault(limits?.guineaPig?.max, fallbackMax)
-    }
-  };
-}
-
 function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
     ...ingredient,
@@ -118,16 +93,37 @@ function normalizeSpecies(
   return normalized;
 }
 
+function normalizeLimits(
+  limits: Partial<Record<SpeciesKey, Partial<IngredientLimit>>> | undefined,
+  fallbackMin: number,
+  fallbackMax: number
+): Record<SpeciesKey, IngredientLimit> {
+  return {
+    layer: {
+      min: numberOrDefault(limits?.layer?.min, fallbackMin),
+      max: numberOrDefault(limits?.layer?.max, fallbackMax)
+    },
+    broiler: {
+      min: numberOrDefault(limits?.broiler?.min, fallbackMin),
+      max: numberOrDefault(limits?.broiler?.max, fallbackMax)
+    },
+    pig: {
+      min: numberOrDefault(limits?.pig?.min, fallbackMin),
+      max: numberOrDefault(limits?.pig?.max, fallbackMax)
+    },
+    guineaPig: {
+      min: numberOrDefault(limits?.guineaPig?.min, fallbackMin),
+      max: numberOrDefault(limits?.guineaPig?.max, fallbackMax)
+    }
+  };
+}
+
 function normalizeSavedIngredients(
-  items: Array<Partial<EditableIngredient> & { speciesLimits?: unknown }>
+  items: Array<Partial<EditableIngredient>>
 ): EditableIngredient[] {
   return items.map((item) => {
     const min = numberOrDefault(item.min, 0);
     const max = numberOrDefault(item.max, 100);
-
-    const oldSpeciesLimits = item.speciesLimits as
-      | Partial<Record<SpeciesKey, Partial<IngredientLimit>>>
-      | undefined;
 
     return {
       id: String(item.id || `ingrediente_${Date.now()}`),
@@ -137,7 +133,7 @@ function normalizeSavedIngredients(
       max,
       active: typeof item.active === "boolean" ? item.active : true,
       species: normalizeSpecies(item.species),
-      limits: normalizeLimits(item.limits || oldSpeciesLimits, min, max),
+      limits: normalizeLimits(item.limits, min, max),
       nutrients: normalizeNutrients(item.nutrients)
     };
   });
@@ -259,19 +255,12 @@ function prepareIngredientsForRequirement(
   return items
     .filter((ingredient) => Boolean(ingredient.species?.[species]))
     .map((ingredient) => {
-      const limits = normalizeLimits(
-        ingredient.limits,
-        ingredient.min,
-        ingredient.max
-      );
-
-      const speciesLimit = limits[species];
+      const limit = ingredient.limits?.[species];
 
       return {
         ...ingredient,
-        limits,
-        min: speciesLimit.min,
-        max: speciesLimit.max
+        min: numberOrDefault(limit?.min, ingredient.min),
+        max: numberOrDefault(limit?.max, ingredient.max)
       };
     });
 }
@@ -286,16 +275,14 @@ export default function HomePage() {
   const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
   const [savedSearch, setSavedSearch] = useState("");
-  const [multiplierDrafts, setMultiplierDrafts] = useState<
-    Record<string, string>
-  >({});
+  const [multiplierDrafts, setMultiplierDrafts] = useState<Record<string, string>>(
+    {}
+  );
   const [result, setResult] = useState<FormulaResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const requirement =
     requirementProfiles[activeRequirementIndex] || defaultRequirement;
-
-  const activeSpecies = getSpeciesFromRequirement(requirement.name);
 
   const visibleIngredients = useMemo(() => {
     return prepareIngredientsForRequirement(ingredients, requirement.name);
@@ -449,11 +436,9 @@ export default function HomePage() {
     const currentIndex = ingredients.findIndex(
       (ingredient) => ingredient.id === id
     );
-
     if (currentIndex < 0) return;
 
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-
     if (targetIndex < 0 || targetIndex >= ingredients.length) return;
 
     const updatedIngredients = [...ingredients];
@@ -468,16 +453,18 @@ export default function HomePage() {
     field: "price" | "min" | "max",
     value: number
   ) {
+    const activeSpecies = getSpeciesFromRequirement(requirement.name);
+
     const updatedIngredients = ingredients.map((ingredient) => {
       if (ingredient.id !== id) return ingredient;
 
-      const normalizedLimits = normalizeLimits(
-        ingredient.limits,
-        ingredient.min,
-        ingredient.max
-      );
-
       if ((field === "min" || field === "max") && activeSpecies) {
+        const normalizedLimits = normalizeLimits(
+          ingredient.limits,
+          ingredient.min,
+          ingredient.max
+        );
+
         return {
           ...ingredient,
           limits: {
@@ -492,14 +479,37 @@ export default function HomePage() {
 
       return {
         ...ingredient,
-        [field]: value,
-        limits:
-          field === "min" || field === "max"
-            ? createAllLimits(
-                field === "min" ? value : ingredient.min,
-                field === "max" ? value : ingredient.max
-              )
-            : normalizedLimits
+        [field]: value
+      };
+    });
+
+    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+  }
+
+  function updateIngredientLimit(
+    id: string,
+    species: SpeciesKey,
+    field: "min" | "max",
+    value: number
+  ) {
+    const updatedIngredients = ingredients.map((ingredient) => {
+      if (ingredient.id !== id) return ingredient;
+
+      const normalizedLimits = normalizeLimits(
+        ingredient.limits,
+        ingredient.min,
+        ingredient.max
+      );
+
+      return {
+        ...ingredient,
+        limits: {
+          ...normalizedLimits,
+          [species]: {
+            ...normalizedLimits[species],
+            [field]: value
+          }
+        }
       };
     });
 
@@ -617,12 +627,8 @@ export default function HomePage() {
   }
 
   function addIngredient() {
-    const baseIngredient = createEmptyIngredient();
-
     const newIngredient: EditableIngredient = {
-      ...baseIngredient,
-      species: baseIngredient.species || createAllSpecies(true),
-      limits: baseIngredient.limits || createAllLimits(baseIngredient.min, baseIngredient.max),
+      ...createEmptyIngredient(),
       active: true
     };
 
@@ -901,6 +907,7 @@ export default function HomePage() {
             onMoveIngredient={moveIngredient}
             onUpdateName={updateIngredientName}
             onUpdateSpecies={updateIngredientSpecies}
+            onUpdateLimit={updateIngredientLimit}
             onUpdateNutrient={updateNutrient}
           />
         )}
@@ -1003,18 +1010,13 @@ export default function HomePage() {
                     />
 
                     <div className="note" style={{ marginTop: 10 }}>
-                      Total mezcla:{" "}
-                      <strong>{formatKg(costingData.totalKg)} kg</strong>
+                      Total mezcla: <strong>{formatKg(costingData.totalKg)} kg</strong>
                       <br />
                       Costo fórmula:{" "}
-                      <strong>
-                        S/ {formatMoney(costingData.totalFormulaCost, 2)}
-                      </strong>
+                      <strong>S/ {formatMoney(costingData.totalFormulaCost, 2)}</strong>
                       <br />
                       Costo real aprox:{" "}
-                      <strong>
-                        S/ {formatMoney(costingData.totalRealCost, 2)}
-                      </strong>
+                      <strong>S/ {formatMoney(costingData.totalRealCost, 2)}</strong>
                       <br />
                       Costo real kg:{" "}
                       <strong>
@@ -1022,23 +1024,13 @@ export default function HomePage() {
                       </strong>
                       <br />
                       Costo real saco 50 kg:{" "}
-                      <strong>
-                        S/ {formatMoney(costingData.realCostPer50Kg, 2)}
-                      </strong>
+                      <strong>S/ {formatMoney(costingData.realCostPer50Kg, 2)}</strong>
                       <br />
                       Venta sugerida saco:{" "}
-                      <strong>
-                        S/ {formatMoney(costingData.salePer50Kg, 2)}
-                      </strong>
+                      <strong>S/ {formatMoney(costingData.salePer50Kg, 2)}</strong>
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: 14,
-                        display: "grid",
-                        gap: 8
-                      }}
-                    >
+                    <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
                       {formula.result.ingredients.map((item) => (
                         <div
                           key={item.id}
