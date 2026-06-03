@@ -9,6 +9,7 @@ import {
   defaultIngredients,
   nutrientKeys,
   speciesKeys,
+  speciesLabels,
   type Ingredient,
   type NutrientKey,
   type SpeciesKey
@@ -23,8 +24,16 @@ import MatrixTab from "@/components/MatrixTab";
 import RequirementsTab from "@/components/RequirementsTab";
 import ResultsTab from "@/components/ResultsTab";
 
+type SpeciesLimit = {
+  min: number;
+  max: number;
+};
+
+type SpeciesLimits = Record<SpeciesKey, SpeciesLimit>;
+
 type EditableIngredient = Ingredient & {
   active: boolean;
+  speciesLimits?: SpeciesLimits;
 };
 
 type SavedCosting = {
@@ -52,10 +61,50 @@ const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
 const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
 const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
 
+function numberOrDefault(value: unknown, fallback: number) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function createSpeciesLimits(min: number, max: number): SpeciesLimits {
+  return {
+    layer: { min, max },
+    broiler: { min, max },
+    pig: { min, max },
+    guineaPig: { min, max }
+  };
+}
+
+function normalizeSpeciesLimits(
+  limits: Partial<Record<SpeciesKey, Partial<SpeciesLimit>>> | undefined,
+  fallbackMin: number,
+  fallbackMax: number
+): SpeciesLimits {
+  return {
+    layer: {
+      min: numberOrDefault(limits?.layer?.min, fallbackMin),
+      max: numberOrDefault(limits?.layer?.max, fallbackMax)
+    },
+    broiler: {
+      min: numberOrDefault(limits?.broiler?.min, fallbackMin),
+      max: numberOrDefault(limits?.broiler?.max, fallbackMax)
+    },
+    pig: {
+      min: numberOrDefault(limits?.pig?.min, fallbackMin),
+      max: numberOrDefault(limits?.pig?.max, fallbackMax)
+    },
+    guineaPig: {
+      min: numberOrDefault(limits?.guineaPig?.min, fallbackMin),
+      max: numberOrDefault(limits?.guineaPig?.max, fallbackMax)
+    }
+  };
+}
+
 function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
     ...ingredient,
     species: ingredient.species || createAllSpecies(true),
+    speciesLimits: createSpeciesLimits(ingredient.min, ingredient.max),
     active: true
   }));
 }
@@ -88,149 +137,29 @@ function normalizeSpecies(
 function normalizeSavedIngredients(
   items: Array<Partial<EditableIngredient>>
 ): EditableIngredient[] {
-  return items.map((item) => ({
-    id: String(item.id || `ingrediente_${Date.now()}`),
-    name: String(item.name || "Nuevo ingrediente"),
-    price: numberOrDefault(item.price, 0),
-    min: numberOrDefault(item.min, 0),
-    max: numberOrDefault(item.max, 100),
-    active: typeof item.active === "boolean" ? item.active : true,
-    species: normalizeSpecies(item.species),
-    nutrients: normalizeNutrients(item.nutrients)
-  }));
-}
+  return items.map((item) => {
+    const min = numberOrDefault(item.min, 0);
+    const max = numberOrDefault(item.max, 100);
 
-function numberOrDefault(value: unknown, fallback: number) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : fallback;
+    return {
+      id: String(item.id || `ingrediente_${Date.now()}`),
+      name: String(item.name || "Nuevo ingrediente"),
+      price: numberOrDefault(item.price, 0),
+      min,
+      max,
+      active: typeof item.active === "boolean" ? item.active : true,
+      species: normalizeSpecies(item.species),
+      speciesLimits: normalizeSpeciesLimits(item.speciesLimits, min, max),
+      nutrients: normalizeNutrients(item.nutrients)
+    };
+  });
 }
 
 function normalizeRequirement(item: Partial<Requirement>): Requirement {
   return {
-    name: String(item.name || defaultRequirement.name),
-
-    energy: numberOrDefault(item.energy, defaultRequirement.energy),
-    energyMax: numberOrDefault(item.energyMax, defaultRequirement.energyMax || 0),
-
-    protein: numberOrDefault(item.protein, defaultRequirement.protein),
-    proteinMax: numberOrDefault(item.proteinMax, defaultRequirement.proteinMax || 0),
-
-    lysine: numberOrDefault(item.lysine, defaultRequirement.lysine),
-    lysineMax: numberOrDefault(item.lysineMax, defaultRequirement.lysineMax || 0),
-
-    methionine: numberOrDefault(item.methionine, defaultRequirement.methionine),
-    methionineMax: numberOrDefault(
-      item.methionineMax,
-      defaultRequirement.methionineMax || 0
-    ),
-
-    metCys: numberOrDefault(item.metCys, defaultRequirement.metCys),
-    metCysMax: numberOrDefault(item.metCysMax, defaultRequirement.metCysMax || 0),
-
-    threonine: numberOrDefault(item.threonine, defaultRequirement.threonine),
-    threonineMax: numberOrDefault(
-      item.threonineMax,
-      defaultRequirement.threonineMax || 0
-    ),
-
-    tryptophan: numberOrDefault(item.tryptophan, defaultRequirement.tryptophan),
-    tryptophanMax: numberOrDefault(
-      item.tryptophanMax,
-      defaultRequirement.tryptophanMax || 0
-    ),
-
-    arginine: numberOrDefault(item.arginine, defaultRequirement.arginine),
-    arginineMax: numberOrDefault(
-      item.arginineMax,
-      defaultRequirement.arginineMax || 0
-    ),
-
-    glycineSerine: numberOrDefault(
-      item.glycineSerine,
-      defaultRequirement.glycineSerine
-    ),
-    glycineSerineMax: numberOrDefault(
-      item.glycineSerineMax,
-      defaultRequirement.glycineSerineMax || 0
-    ),
-
-    histidine: numberOrDefault(item.histidine, defaultRequirement.histidine),
-    histidineMax: numberOrDefault(
-      item.histidineMax,
-      defaultRequirement.histidineMax || 0
-    ),
-
-    isoleucine: numberOrDefault(item.isoleucine, defaultRequirement.isoleucine),
-    isoleucineMax: numberOrDefault(
-      item.isoleucineMax,
-      defaultRequirement.isoleucineMax || 0
-    ),
-
-    leucine: numberOrDefault(item.leucine, defaultRequirement.leucine),
-    leucineMax: numberOrDefault(
-      item.leucineMax,
-      defaultRequirement.leucineMax || 0
-    ),
-
-    phenylalanine: numberOrDefault(
-      item.phenylalanine,
-      defaultRequirement.phenylalanine
-    ),
-    phenylalanineMax: numberOrDefault(
-      item.phenylalanineMax,
-      defaultRequirement.phenylalanineMax || 0
-    ),
-
-    tyrosine: numberOrDefault(item.tyrosine, defaultRequirement.tyrosine),
-    tyrosineMax: numberOrDefault(
-      item.tyrosineMax,
-      defaultRequirement.tyrosineMax || 0
-    ),
-
-    phenylalanineTyrosine: numberOrDefault(
-      item.phenylalanineTyrosine,
-      defaultRequirement.phenylalanineTyrosine
-    ),
-    phenylalanineTyrosineMax: numberOrDefault(
-      item.phenylalanineTyrosineMax,
-      defaultRequirement.phenylalanineTyrosineMax || 0
-    ),
-
-    valine: numberOrDefault(item.valine, defaultRequirement.valine),
-    valineMax: numberOrDefault(item.valineMax, defaultRequirement.valineMax || 0),
-
-    calcium: numberOrDefault(item.calcium, defaultRequirement.calcium),
-    calciumMax: numberOrDefault(
-      item.calciumMax,
-      defaultRequirement.calciumMax || 0
-    ),
-
-    availablePhosphorus: numberOrDefault(
-      item.availablePhosphorus,
-      defaultRequirement.availablePhosphorus
-    ),
-    availablePhosphorusMax: numberOrDefault(
-      item.availablePhosphorusMax,
-      defaultRequirement.availablePhosphorusMax || 0
-    ),
-
-    sodium: numberOrDefault(item.sodium, defaultRequirement.sodium),
-    sodiumMax: numberOrDefault(item.sodiumMax, defaultRequirement.sodiumMax || 0),
-
-    chlorine: numberOrDefault(item.chlorine, defaultRequirement.chlorine),
-    chlorineMax: numberOrDefault(
-      item.chlorineMax,
-      defaultRequirement.chlorineMax || 0
-    ),
-
-    linoleicAcid: numberOrDefault(
-      item.linoleicAcid,
-      defaultRequirement.linoleicAcid
-    ),
-    linoleicAcidMax: numberOrDefault(
-      item.linoleicAcidMax,
-      defaultRequirement.linoleicAcidMax || 0
-    )
+    ...defaultRequirement,
+    ...item,
+    name: String(item.name || defaultRequirement.name)
   };
 }
 
@@ -331,15 +260,25 @@ function getSpeciesFromRequirement(requirementName: string): SpeciesKey | null {
   return null;
 }
 
-function filterIngredientsByRequirement(
+function prepareIngredientsForRequirement(
   items: EditableIngredient[],
   requirementName: string
-) {
+): EditableIngredient[] {
   const species = getSpeciesFromRequirement(requirementName);
 
   if (!species) return items;
 
-  return items.filter((ingredient) => Boolean(ingredient.species?.[species]));
+  return items
+    .filter((ingredient) => Boolean(ingredient.species?.[species]))
+    .map((ingredient) => {
+      const speciesLimit = ingredient.speciesLimits?.[species];
+
+      return {
+        ...ingredient,
+        min: numberOrDefault(speciesLimit?.min, ingredient.min),
+        max: numberOrDefault(speciesLimit?.max, ingredient.max)
+      };
+    });
 }
 
 export default function HomePage() {
@@ -361,8 +300,10 @@ export default function HomePage() {
   const requirement =
     requirementProfiles[activeRequirementIndex] || defaultRequirement;
 
+  const activeSpecies = getSpeciesFromRequirement(requirement.name);
+
   const visibleIngredients = useMemo(() => {
-    return filterIngredientsByRequirement(ingredients, requirement.name);
+    return prepareIngredientsForRequirement(ingredients, requirement.name);
   }, [ingredients, requirement.name]);
 
   const hiddenIngredientCount = ingredients.length - visibleIngredients.length;
@@ -458,7 +399,7 @@ export default function HomePage() {
     }
 
     const currentRequirement = currentRequirements[currentIndex];
-    const visible = filterIngredientsByRequirement(
+    const visible = prepareIngredientsForRequirement(
       currentIngredients,
       currentRequirement.name
     );
@@ -493,7 +434,7 @@ export default function HomePage() {
 
     window.localStorage.setItem(ACTIVE_REQUIREMENT_INDEX_KEY, String(safeIndex));
 
-    const visible = filterIngredientsByRequirement(
+    const visible = prepareIngredientsForRequirement(
       updatedIngredients,
       nextRequirement.name
     );
@@ -530,9 +471,35 @@ export default function HomePage() {
     field: "price" | "min" | "max",
     value: number
   ) {
-    const updatedIngredients = ingredients.map((ingredient) =>
-      ingredient.id === id ? { ...ingredient, [field]: value } : ingredient
-    );
+    const updatedIngredients = ingredients.map((ingredient) => {
+      if (ingredient.id !== id) return ingredient;
+
+      if ((field === "min" || field === "max") && activeSpecies) {
+        return {
+          ...ingredient,
+          speciesLimits: {
+            ...normalizeSpeciesLimits(
+              ingredient.speciesLimits,
+              ingredient.min,
+              ingredient.max
+            ),
+            [activeSpecies]: {
+              ...normalizeSpeciesLimits(
+                ingredient.speciesLimits,
+                ingredient.min,
+                ingredient.max
+              )[activeSpecies],
+              [field]: value
+            }
+          }
+        };
+      }
+
+      return {
+        ...ingredient,
+        [field]: value
+      };
+    });
 
     saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
   }
@@ -648,8 +615,12 @@ export default function HomePage() {
   }
 
   function addIngredient() {
+    const baseIngredient = createEmptyIngredient();
+
     const newIngredient: EditableIngredient = {
-      ...createEmptyIngredient(),
+      ...baseIngredient,
+      species: baseIngredient.species || createAllSpecies(true),
+      speciesLimits: createSpeciesLimits(baseIngredient.min, baseIngredient.max),
       active: true
     };
 
@@ -671,11 +642,23 @@ export default function HomePage() {
   }
 
   function resetIngredients() {
+    const confirmReset = window.confirm(
+      "Esto reiniciará la matriz de ingredientes. Si tienes ingredientes nuevos escritos a mano, se perderán. ¿Seguro?"
+    );
+
+    if (!confirmReset) return;
+
     const freshIngredients = getInitialIngredients();
     saveAll(freshIngredients, requirementProfiles, activeRequirementIndex);
   }
 
   function resetRequirement() {
+    const confirmReset = window.confirm(
+      "Esto reiniciará todos los perfiles de requerimientos. ¿Seguro?"
+    );
+
+    if (!confirmReset) return;
+
     saveAll(ingredients, [defaultRequirement], 0);
   }
 
@@ -978,20 +961,14 @@ export default function HomePage() {
                       overflowX: "hidden"
                     }}
                   >
-                    <h3
-                      style={{
-                        marginTop: 0,
-                        wordBreak: "break-word"
-                      }}
-                    >
+                    <h3 style={{ marginTop: 0, wordBreak: "break-word" }}>
                       {formula.name}
                     </h3>
 
                     <div className="note" style={{ wordBreak: "break-word" }}>
                       Perfil: {formula.requirementName}
                       <br />
-                      Guardada:{" "}
-                      {new Date(formula.createdAt).toLocaleDateString()}
+                      Guardada: {new Date(formula.createdAt).toLocaleDateString()}
                     </div>
 
                     <label
