@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  createAllLimits,
   createAllSpecies,
   createEmptyIngredient,
   createEmptyNutrients,
   defaultIngredients,
   nutrientKeys,
   speciesKeys,
-  speciesLabels,
   type Ingredient,
+  type IngredientLimit,
   type NutrientKey,
   type SpeciesKey
 } from "@/lib/ingredients";
@@ -24,16 +25,8 @@ import MatrixTab from "@/components/MatrixTab";
 import RequirementsTab from "@/components/RequirementsTab";
 import ResultsTab from "@/components/ResultsTab";
 
-type SpeciesLimit = {
-  min: number;
-  max: number;
-};
-
-type SpeciesLimits = Record<SpeciesKey, SpeciesLimit>;
-
 type EditableIngredient = Ingredient & {
   active: boolean;
-  speciesLimits?: SpeciesLimits;
 };
 
 type SavedCosting = {
@@ -66,20 +59,11 @@ function numberOrDefault(value: unknown, fallback: number) {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
-function createSpeciesLimits(min: number, max: number): SpeciesLimits {
-  return {
-    layer: { min, max },
-    broiler: { min, max },
-    pig: { min, max },
-    guineaPig: { min, max }
-  };
-}
-
-function normalizeSpeciesLimits(
-  limits: Partial<Record<SpeciesKey, Partial<SpeciesLimit>>> | undefined,
+function normalizeLimits(
+  limits: Partial<Record<SpeciesKey, Partial<IngredientLimit>>> | undefined,
   fallbackMin: number,
   fallbackMax: number
-): SpeciesLimits {
+): Record<SpeciesKey, IngredientLimit> {
   return {
     layer: {
       min: numberOrDefault(limits?.layer?.min, fallbackMin),
@@ -104,7 +88,7 @@ function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
     ...ingredient,
     species: ingredient.species || createAllSpecies(true),
-    speciesLimits: createSpeciesLimits(ingredient.min, ingredient.max),
+    limits: ingredient.limits || createAllLimits(ingredient.min, ingredient.max),
     active: true
   }));
 }
@@ -135,11 +119,15 @@ function normalizeSpecies(
 }
 
 function normalizeSavedIngredients(
-  items: Array<Partial<EditableIngredient>>
+  items: Array<Partial<EditableIngredient> & { speciesLimits?: unknown }>
 ): EditableIngredient[] {
   return items.map((item) => {
     const min = numberOrDefault(item.min, 0);
     const max = numberOrDefault(item.max, 100);
+
+    const oldSpeciesLimits = item.speciesLimits as
+      | Partial<Record<SpeciesKey, Partial<IngredientLimit>>>
+      | undefined;
 
     return {
       id: String(item.id || `ingrediente_${Date.now()}`),
@@ -149,7 +137,7 @@ function normalizeSavedIngredients(
       max,
       active: typeof item.active === "boolean" ? item.active : true,
       species: normalizeSpecies(item.species),
-      speciesLimits: normalizeSpeciesLimits(item.speciesLimits, min, max),
+      limits: normalizeLimits(item.limits || oldSpeciesLimits, min, max),
       nutrients: normalizeNutrients(item.nutrients)
     };
   });
@@ -271,12 +259,19 @@ function prepareIngredientsForRequirement(
   return items
     .filter((ingredient) => Boolean(ingredient.species?.[species]))
     .map((ingredient) => {
-      const speciesLimit = ingredient.speciesLimits?.[species];
+      const limits = normalizeLimits(
+        ingredient.limits,
+        ingredient.min,
+        ingredient.max
+      );
+
+      const speciesLimit = limits[species];
 
       return {
         ...ingredient,
-        min: numberOrDefault(speciesLimit?.min, ingredient.min),
-        max: numberOrDefault(speciesLimit?.max, ingredient.max)
+        limits,
+        min: speciesLimit.min,
+        max: speciesLimit.max
       };
     });
 }
@@ -454,9 +449,11 @@ export default function HomePage() {
     const currentIndex = ingredients.findIndex(
       (ingredient) => ingredient.id === id
     );
+
     if (currentIndex < 0) return;
 
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
     if (targetIndex < 0 || targetIndex >= ingredients.length) return;
 
     const updatedIngredients = [...ingredients];
@@ -474,21 +471,19 @@ export default function HomePage() {
     const updatedIngredients = ingredients.map((ingredient) => {
       if (ingredient.id !== id) return ingredient;
 
+      const normalizedLimits = normalizeLimits(
+        ingredient.limits,
+        ingredient.min,
+        ingredient.max
+      );
+
       if ((field === "min" || field === "max") && activeSpecies) {
         return {
           ...ingredient,
-          speciesLimits: {
-            ...normalizeSpeciesLimits(
-              ingredient.speciesLimits,
-              ingredient.min,
-              ingredient.max
-            ),
+          limits: {
+            ...normalizedLimits,
             [activeSpecies]: {
-              ...normalizeSpeciesLimits(
-                ingredient.speciesLimits,
-                ingredient.min,
-                ingredient.max
-              )[activeSpecies],
+              ...normalizedLimits[activeSpecies],
               [field]: value
             }
           }
@@ -497,7 +492,14 @@ export default function HomePage() {
 
       return {
         ...ingredient,
-        [field]: value
+        [field]: value,
+        limits:
+          field === "min" || field === "max"
+            ? createAllLimits(
+                field === "min" ? value : ingredient.min,
+                field === "max" ? value : ingredient.max
+              )
+            : normalizedLimits
       };
     });
 
@@ -620,7 +622,7 @@ export default function HomePage() {
     const newIngredient: EditableIngredient = {
       ...baseIngredient,
       species: baseIngredient.species || createAllSpecies(true),
-      speciesLimits: createSpeciesLimits(baseIngredient.min, baseIngredient.max),
+      limits: baseIngredient.limits || createAllLimits(baseIngredient.min, baseIngredient.max),
       active: true
     };
 
@@ -1120,4 +1122,4 @@ export default function HomePage() {
       </div>
     </main>
   );
-}
+  }
