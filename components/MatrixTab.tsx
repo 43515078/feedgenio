@@ -19,215 +19,18 @@ type Props = {
   onMoveIngredient: (id: string, direction: "up" | "down") => void;
   onUpdateName: (id: string, name: string) => void;
   onUpdateSpecies: (id: string, species: SpeciesKey, value: boolean) => void;
+  onUpdateLimit: (
+    id: string,
+    species: SpeciesKey,
+    field: "min" | "max",
+    value: number
+  ) => void;
   onUpdateNutrient: (
     id: string,
     nutrient: NutrientKey,
     value: number
   ) => void;
 };
-
-type MatrixAlert = {
-  level: "warning" | "danger" | "info";
-  message: string;
-};
-
-function alertClass(level: MatrixAlert["level"]) {
-  if (level === "danger") return "warning";
-  if (level === "warning") return "warning";
-  return "note";
-}
-
-function lowerText(value: string) {
-  return value.toLowerCase();
-}
-
-function isKnownLowNutrientAdditive(name: string) {
-  return (
-    name.includes("premix") ||
-    name.includes("premezcla") ||
-    name.includes("vit min") ||
-    name.includes("vitamina") ||
-    name.includes("mineral") ||
-    name.includes("colina") ||
-    name.includes("bacitracina") ||
-    name.includes("zincbacitracina") ||
-    name.includes("bmd") ||
-    name.includes("aflaban") ||
-    name.includes("fungiban") ||
-    name.includes("antifúngico") ||
-    name.includes("antifungico") ||
-    name.includes("secuestrante") ||
-    name.includes("toxina") ||
-    name.includes("toxinas") ||
-    name.includes("enzima") ||
-    name.includes("enzimas") ||
-    name.includes("fitasa") ||
-    name.includes("superzyme") ||
-    name.includes("ronozyme")
-  );
-}
-
-function buildMatrixAlerts(ingredients: EditableIngredient[]): MatrixAlert[] {
-  const alerts: MatrixAlert[] = [];
-
-  ingredients.forEach((ingredient) => {
-    if (!ingredient.active) return;
-
-    const selectedSpecies = speciesKeys.filter(
-      (species) => ingredient.species?.[species]
-    );
-
-    const name = lowerText(ingredient.name);
-    const energy = Number(ingredient.nutrients.energy || 0);
-    const protein = Number(ingredient.nutrients.protein || 0);
-    const calcium = Number(ingredient.nutrients.calcium || 0);
-    const availablePhosphorus = Number(
-      ingredient.nutrients.availablePhosphorus || 0
-    );
-    const sodium = Number(ingredient.nutrients.sodium || 0);
-    const chlorine = Number(ingredient.nutrients.chlorine || 0);
-    const linoleicAcid = Number(ingredient.nutrients.linoleicAcid || 0);
-
-    const looksLikeCorn = name.includes("maíz") || name.includes("maiz");
-    const looksLikeSoy = name.includes("soya") || name.includes("soja");
-    const looksLikeOil = name.includes("aceite") || name.includes("grasa");
-
-    const looksLikeCarbonate =
-      name.includes("carbonato") && !name.includes("bicarbonato");
-
-    const looksLikeBicarbonate = name.includes("bicarbonato");
-
-    const looksLikeDcp =
-      name.includes("fosfato") ||
-      name.includes("dcp") ||
-      name.includes("dicálcico") ||
-      name.includes("dicalcico");
-
-    const looksLikeSalt =
-      name === "sal" ||
-      name.includes("sal común") ||
-      name.includes("sal comun");
-
-    const isAdditive = isKnownLowNutrientAdditive(name);
-
-    if (!ingredient.name.trim()) {
-      alerts.push({
-        level: "warning",
-        message: "Hay un ingrediente activo sin nombre."
-      });
-    }
-
-    if (selectedSpecies.length === 0) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: no está marcado para ninguna especie, no aparecerá en Formular.`
-      });
-    }
-
-    if (looksLikeCorn && energy < 3000) {
-      alerts.push({
-        level: "danger",
-        message: `${ingredient.name}: la energía parece baja para maíz (${energy}). Revisa si faltó un cero.`
-      });
-    }
-
-    if (looksLikeSoy && energy < 1800) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: la energía parece baja para torta de soya (${energy}).`
-      });
-    }
-
-    if (looksLikeOil && energy < 7000) {
-      alerts.push({
-        level: "danger",
-        message: `${ingredient.name}: la energía parece muy baja para aceite (${energy}). Normalmente debería estar cerca de 8800-9000.`
-      });
-    }
-
-    if (looksLikeOil && linoleicAcid <= 0) {
-      alerts.push({
-        level: "info",
-        message: `${ingredient.name}: ácido linoleico en 0. Si usas aceite de soya/vegetal, revisa este valor.`
-      });
-    }
-
-    if (looksLikeSoy && protein < 35) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: proteína baja para torta de soya (${protein}%).`
-      });
-    }
-
-    if (looksLikeCarbonate && calcium < 30) {
-      alerts.push({
-        level: "danger",
-        message: `${ingredient.name}: calcio bajo para carbonato (${calcium}%). Revisa si faltó un número.`
-      });
-    }
-
-    if (looksLikeBicarbonate && sodium < 20) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: sodio bajo para bicarbonato (${sodium}%). Revisa si la matriz está completa.`
-      });
-    }
-
-    if (looksLikeDcp && availablePhosphorus < 10) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: fósforo disponible bajo para fosfato/DCP (${availablePhosphorus}%).`
-      });
-    }
-
-    if (looksLikeDcp && calcium < 15) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: calcio bajo para fosfato/DCP (${calcium}%).`
-      });
-    }
-
-    if (looksLikeSalt && sodium < 30) {
-      alerts.push({
-        level: "danger",
-        message: `${ingredient.name}: sodio bajo para sal común (${sodium}%).`
-      });
-    }
-
-    if (looksLikeSalt && chlorine < 45) {
-      alerts.push({
-        level: "warning",
-        message: `${ingredient.name}: cloro bajo para sal común (${chlorine}%).`
-      });
-    }
-
-    if (
-      !isAdditive &&
-      energy <= 0 &&
-      protein <= 0 &&
-      calcium <= 0 &&
-      availablePhosphorus <= 0 &&
-      sodium <= 0 &&
-      chlorine <= 0 &&
-      linoleicAcid <= 0
-    ) {
-      alerts.push({
-        level: "info",
-        message: `${ingredient.name}: tiene casi toda la matriz en 0. Si es un aditivo sin aporte nutricional, puedes ignorarlo.`
-      });
-    }
-  });
-
-  if (alerts.length === 0) {
-    alerts.push({
-      level: "info",
-      message:
-        "✅ Matriz revisada. No se detectaron errores típicos de formulación."
-    });
-  }
-
-  return alerts;
-}
 
 export default function MatrixTab({
   ingredients,
@@ -237,37 +40,18 @@ export default function MatrixTab({
   onMoveIngredient,
   onUpdateName,
   onUpdateSpecies,
+  onUpdateLimit,
   onUpdateNutrient
 }: Props) {
-  const matrixAlerts = buildMatrixAlerts(ingredients);
-
   return (
     <section className="card">
       <h2>🧪 Matriz nutricional editable</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
-        Aquí defines el orden maestro, las especies donde se usa cada insumo y
-        la matriz nutricional. Formular obedecerá esta configuración.
+        Aquí defines el orden maestro, especies, límites por especie y matriz nutricional.
       </div>
 
-      <div style={{ marginBottom: 14 }}>
-        {matrixAlerts.map((alert, index) => (
-          <div
-            key={`${alert.message}_${index}`}
-            className={alertClass(alert.level)}
-            style={{ marginTop: index === 0 ? 0 : 10 }}
-          >
-            {alert.message}
-          </div>
-        ))}
-      </div>
-
-      <button
-        className="action"
-        type="button"
-        onClick={onAddIngredient}
-        style={{ marginTop: 0, marginBottom: 14 }}
-      >
+      <button className="action" type="button" onClick={onAddIngredient}>
         Agregar ingrediente
       </button>
 
@@ -295,16 +79,13 @@ export default function MatrixTab({
                     type="button"
                     className="tab-button"
                     onClick={() => onMoveIngredient(ingredient.id, "up")}
-                    style={{ padding: "6px 8px", marginRight: 4 }}
                   >
                     ↑
                   </button>
-
                   <button
                     type="button"
                     className="tab-button"
                     onClick={() => onMoveIngredient(ingredient.id, "down")}
-                    style={{ padding: "6px 8px" }}
                   >
                     ↓
                   </button>
@@ -323,7 +104,7 @@ export default function MatrixTab({
                 </td>
 
                 {speciesKeys.map((species) => (
-                  <td key={species} style={{ textAlign: "center" }}>
+                  <td key={species}>
                     <input
                       className="checkbox-input"
                       type="checkbox"
@@ -336,6 +117,39 @@ export default function MatrixTab({
                         )
                       }
                     />
+
+                    <div style={{ marginTop: 6 }}>
+                      <input
+                        className="price-input"
+                        type="number"
+                        step="0.1"
+                        value={ingredient.limits?.[species]?.min ?? 0}
+                        onChange={(event) =>
+                          onUpdateLimit(
+                            ingredient.id,
+                            species,
+                            "min",
+                            Number(event.target.value || 0)
+                          )
+                        }
+                        style={{ width: 70 }}
+                      />
+                      <input
+                        className="price-input"
+                        type="number"
+                        step="0.1"
+                        value={ingredient.limits?.[species]?.max ?? 100}
+                        onChange={(event) =>
+                          onUpdateLimit(
+                            ingredient.id,
+                            species,
+                            "max",
+                            Number(event.target.value || 0)
+                          )
+                        }
+                        style={{ width: 70, marginLeft: 4 }}
+                      />
+                    </div>
                   </td>
                 ))}
 
