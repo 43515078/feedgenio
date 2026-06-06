@@ -238,6 +238,49 @@ tbody tr:last-child td {
   color: #2d4b39;
 }
 
+/* ✅ MATRIZ CON FILA SUPERIOR E INSUMO FIJO */
+
+.matrix-table-wrap {
+  max-height: 72vh;
+  overflow: auto;
+  position: relative;
+}
+
+.matrix-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 2600px;
+}
+
+.matrix-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #edf5ef;
+}
+
+.matrix-table .matrix-sticky-name {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: #ffffff;
+  box-shadow: 8px 0 12px rgba(15, 30, 20, 0.08);
+}
+
+.matrix-table thead .matrix-sticky-name {
+  z-index: 8;
+  background: #edf5ef;
+}
+
+.matrix-name-input {
+  width: 180px;
+}
+
+.matrix-table th,
+.matrix-table td {
+  white-space: nowrap;
+}
+
 @media (max-width: 520px) {
   .page {
     padding: 14px;
@@ -268,5 +311,13 @@ tbody tr:last-child td {
 
   .price-input {
     width: 82px;
+  }
+
+  .matrix-table {
+    min-width: 2500px;
+  }
+
+  .matrix-name-input {
+    width: 150px;
   }
 }
