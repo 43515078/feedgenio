@@ -48,25 +48,29 @@ export default function MatrixTab({
       <h2>🧪 Matriz nutricional editable</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
-        Aquí defines el orden maestro, especies, límites por especie y matriz nutricional.
+        Aquí defines el orden maestro, especies, límites por especie y matriz
+        nutricional.
       </div>
 
       <button className="action" type="button" onClick={onAddIngredient}>
         Agregar ingrediente
       </button>
 
-      <div className="table-wrap">
-        <table>
+      <div className="table-wrap matrix-table-wrap">
+        <table className="matrix-table">
           <thead>
             <tr>
               <th>Orden</th>
-              <th>Insumo</th>
+              <th className="matrix-sticky-name">Insumo</th>
+
               {speciesKeys.map((species) => (
                 <th key={species}>{speciesLabels[species]}</th>
               ))}
+
               {nutrientKeys.map((key) => (
                 <th key={key}>{nutrientLabels[key]}</th>
               ))}
+
               <th>Eliminar</th>
             </tr>
           </thead>
@@ -82,6 +86,7 @@ export default function MatrixTab({
                   >
                     ↑
                   </button>
+
                   <button
                     type="button"
                     className="tab-button"
@@ -91,10 +96,9 @@ export default function MatrixTab({
                   </button>
                 </td>
 
-                <td>
+                <td className="matrix-sticky-name">
                   <input
-                    className="price-input"
-                    style={{ width: 180 }}
+                    className="price-input matrix-name-input"
                     type="text"
                     value={ingredient.name}
                     onChange={(event) =>
@@ -134,6 +138,7 @@ export default function MatrixTab({
                         }
                         style={{ width: 70 }}
                       />
+
                       <input
                         className="price-input"
                         type="number"
