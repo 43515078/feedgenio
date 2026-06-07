@@ -59,6 +59,54 @@ function numberOrDefault(value: unknown, fallback: number) {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
+function createEmptyRequirement(name: string): Requirement {
+  return {
+    name,
+    energy: 0,
+    energyMax: 0,
+    protein: 0,
+    proteinMax: 0,
+    lysine: 0,
+    lysineMax: 0,
+    methionine: 0,
+    methionineMax: 0,
+    metCys: 0,
+    metCysMax: 0,
+    threonine: 0,
+    threonineMax: 0,
+    tryptophan: 0,
+    tryptophanMax: 0,
+    arginine: 0,
+    arginineMax: 0,
+    glycineSerine: 0,
+    glycineSerineMax: 0,
+    histidine: 0,
+    histidineMax: 0,
+    isoleucine: 0,
+    isoleucineMax: 0,
+    leucine: 0,
+    leucineMax: 0,
+    phenylalanine: 0,
+    phenylalanineMax: 0,
+    tyrosine: 0,
+    tyrosineMax: 0,
+    phenylalanineTyrosine: 0,
+    phenylalanineTyrosineMax: 0,
+    valine: 0,
+    valineMax: 0,
+    calcium: 0,
+    calciumMax: 0,
+    availablePhosphorus: 0,
+    availablePhosphorusMax: 0,
+    sodium: 0,
+    sodiumMax: 0,
+    chlorine: 0,
+    chlorineMax: 0,
+    linoleicAcid: 0,
+    linoleicAcidMax: 0
+  };
+}
+
 function getInitialIngredients(): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
     ...ingredient,
@@ -187,24 +235,16 @@ function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
   const realCostPer100Kg =
     costWithProductionPerKg * 100 + costing.bagCostPer50Kg * 2;
 
-  const realCostPerTon =
-    costWithProductionPerKg * 1000 + costing.bagCostPer50Kg * 20;
-
   const salePer50Kg = realCostPer50Kg * (1 + costing.marginPercent / 100);
-  const salePerKg = salePer50Kg / 50;
 
   const totalKg = 100 * multiplier;
   const totalFormulaCost = formula.result.costPer100Kg * multiplier;
   const totalRealCost = realCostPer100Kg * multiplier;
 
   return {
-    costing,
     costWithProductionPerKg,
     realCostPer50Kg,
-    realCostPer100Kg,
-    realCostPerTon,
     salePer50Kg,
-    salePerKg,
     totalKg,
     totalFormulaCost,
     totalRealCost
@@ -436,9 +476,11 @@ export default function HomePage() {
     const currentIndex = ingredients.findIndex(
       (ingredient) => ingredient.id === id
     );
+
     if (currentIndex < 0) return;
 
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
     if (targetIndex < 0 || targetIndex >= ingredients.length) return;
 
     const updatedIngredients = [...ingredients];
@@ -573,10 +615,9 @@ export default function HomePage() {
   }
 
   function createRequirement() {
-    const newRequirement: Requirement = {
-      ...defaultRequirement,
-      name: `Nuevo perfil ${requirementProfiles.length + 1}`
-    };
+    const newRequirement = createEmptyRequirement(
+      `Nuevo perfil ${requirementProfiles.length + 1}`
+    );
 
     const updatedProfiles = [...requirementProfiles, newRequirement];
     const newIndex = updatedProfiles.length - 1;
@@ -594,16 +635,6 @@ export default function HomePage() {
     const newIndex = updatedProfiles.length - 1;
 
     saveAll(ingredients, updatedProfiles, newIndex);
-  }
-
-  function loadBaseRequirement(profile: Requirement) {
-    const newProfile: Requirement = normalizeRequirement(profile);
-
-    const updatedProfiles = [...requirementProfiles, newProfile];
-    const newIndex = updatedProfiles.length - 1;
-
-    saveAll(ingredients, updatedProfiles, newIndex);
-    setActiveTab("requirements");
   }
 
   function deleteRequirement() {
@@ -802,18 +833,9 @@ export default function HomePage() {
       `Costo fórmula: S/ ${formatMoney(costingData.totalFormulaCost, 2)}`,
       `Costo real aprox: S/ ${formatMoney(costingData.totalRealCost, 2)}`,
       `Costo por kg: S/ ${formula.result.costPerKg.toFixed(3)}`,
-      `Costo real por kg: S/ ${formatMoney(
-        costingData.costWithProductionPerKg,
-        3
-      )}`,
-      `Costo real saco 50 kg: S/ ${formatMoney(
-        costingData.realCostPer50Kg,
-        2
-      )}`,
-      `Venta sugerida saco 50 kg: S/ ${formatMoney(
-        costingData.salePer50Kg,
-        2
-      )}`,
+      `Costo real por kg: S/ ${formatMoney(costingData.costWithProductionPerKg, 3)}`,
+      `Costo real saco 50 kg: S/ ${formatMoney(costingData.realCostPer50Kg, 2)}`,
+      `Venta sugerida saco 50 kg: S/ ${formatMoney(costingData.salePer50Kg, 2)}`,
       "",
       "Ingredientes:"
     ];
@@ -923,7 +945,6 @@ export default function HomePage() {
             onDuplicateRequirement={duplicateRequirement}
             onDeleteRequirement={deleteRequirement}
             onResetRequirement={resetRequirement}
-            onLoadBaseRequirement={loadBaseRequirement}
           />
         )}
 
@@ -1114,4 +1135,4 @@ export default function HomePage() {
       </div>
     </main>
   );
-  }
+}
