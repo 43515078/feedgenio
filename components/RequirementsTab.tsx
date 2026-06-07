@@ -1,7 +1,4 @@
-import {
-  baseRequirementProfiles,
-  type Requirement
-} from "@/lib/requirements";
+import type { Requirement } from "@/lib/requirements";
 
 type Props = {
   requirement: Requirement;
@@ -16,7 +13,6 @@ type Props = {
   onDuplicateRequirement: () => void;
   onDeleteRequirement: () => void;
   onResetRequirement: () => void;
-  onLoadBaseRequirement: (profile: Requirement) => void;
 };
 
 type RequirementRow = {
@@ -64,18 +60,31 @@ export default function RequirementsTab({
   onCreateRequirement,
   onDuplicateRequirement,
   onDeleteRequirement,
-  onResetRequirement,
-  onLoadBaseRequirement
+  onResetRequirement
 }: Props) {
   return (
     <section className="card">
       <h2>🎯 Perfiles de requerimientos</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
-        Crea varios perfiles nutricionales y define rangos mínimos y máximos.
+        Aquí solo aparecen tus perfiles creados. Nada de perfiles base molestando la vista.
       </div>
 
-      <div className="table-wrap" style={{ marginBottom: 14 }}>
+      <h3>📋 Mis perfiles</h3>
+
+      {requirementProfiles.map((profile, index) => (
+        <button
+          key={`${profile.name}_${index}`}
+          className={`action ${index === activeRequirementIndex ? "" : "secondary"}`}
+          type="button"
+          onClick={() => onSelectRequirement(index)}
+        >
+          {index === activeRequirementIndex ? "✅ " : ""}
+          {profile.name || `Perfil ${index + 1}`}
+        </button>
+      ))}
+
+      <div className="table-wrap" style={{ marginTop: 16, marginBottom: 14 }}>
         <table>
           <tbody>
             <tr>
@@ -167,19 +176,6 @@ export default function RequirementsTab({
           </tbody>
         </table>
       </div>
-
-      <h3>📚 Cargar perfil base</h3>
-
-      {baseRequirementProfiles.map((profile) => (
-        <button
-          key={profile.name}
-          className="action secondary"
-          type="button"
-          onClick={() => onLoadBaseRequirement(profile)}
-        >
-          Cargar {profile.name}
-        </button>
-      ))}
 
       <button className="action" type="button" onClick={onCreateRequirement}>
         Nuevo perfil vacío
