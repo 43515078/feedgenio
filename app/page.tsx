@@ -62,6 +62,7 @@ function numberOrDefault(value: unknown, fallback: number) {
 function createEmptyRequirement(name: string): Requirement {
   return {
     name,
+    species: defaultRequirement.species,
     energy: 0,
     energyMax: 0,
     protein: 0,
