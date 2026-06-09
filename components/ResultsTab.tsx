@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { NutrientKey } from "@/lib/ingredients";
-import { nutrientLabels } from "@/lib/ingredients";
+import {
+  nutrientLabels,
+  nutrientKeys,
+  type NutrientKey
+} from "@/lib/ingredients";
 import type { Requirement } from "@/lib/requirements";
 import type { FormulaResult } from "@/lib/solver";
 
@@ -26,24 +29,6 @@ type Alert = {
   level: "warning" | "danger" | "info";
   message: string;
 };
-
-const nutrientKeys: NutrientKey[] = [
-  "energy",
-  "protein",
-  "lysine",
-  "methionine",
-  "metCys",
-  "threonine",
-  "tryptophan",
-  "arginine",
-  "isoleucine",
-  "valine",
-  "calcium",
-  "availablePhosphorus",
-  "sodium",
-  "chlorine",
-  "linoleicAcid"
-];
 
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
@@ -127,12 +112,18 @@ function getProfileFlags(requirementName: string) {
   const name = requirementName.toLowerCase();
 
   return {
-    isLayer: name.includes("ponedora"),
+    isLayer:
+      name.includes("ponedora") ||
+      name.includes("postura") ||
+      name.includes("gallina") ||
+      name.includes("hyline") ||
+      name.includes("hy-line") ||
+      name.includes("dekalb"),
     isBroiler:
       name.includes("cobb") ||
       name.includes("broiler") ||
       name.includes("pollo"),
-    isPig: name.includes("cerdo"),
+    isPig: name.includes("cerdo") || name.includes("porcino"),
     isGuineaPig: name.includes("cuy"),
     isSummer: name.includes("verano")
   };
@@ -290,10 +281,21 @@ function alertClass(level: Alert["level"]) {
 }
 
 function limitStatusClass(status: string) {
-  if (status === "max" || status === "nearMax" || status === "above") {
+  if (
+    status === "max" ||
+    status === "nearMax" ||
+    status === "above" ||
+    status === "danger"
+  ) {
     return "warning";
   }
 
+  return "note";
+}
+
+function smartDiagnosisClass(level: "info" | "warning" | "danger") {
+  if (level === "danger") return "warning";
+  if (level === "warning") return "warning";
   return "note";
 }
 
@@ -337,6 +339,15 @@ function buildSummary(
   lines.push(`Precio venta sugerido saco 50 kg: S/ ${round(salePer50Kg, 2)}`);
   lines.push(`Precio venta sugerido por kg: S/ ${round(salePerKg, 3)}`);
 
+  if (result.smartDiagnostics && result.smartDiagnostics.length > 0) {
+    lines.push("");
+    lines.push("Diagnóstico inteligente:");
+
+    result.smartDiagnostics.forEach((item) => {
+      lines.push(`- ${item.title}: ${item.message} Acción: ${item.action}`);
+    });
+  }
+
   lines.push("");
   lines.push("Nutrientes obtenidos:");
 
@@ -378,6 +389,8 @@ export default function ResultsTab({
 
   const nutrientLimitStatuses =
     result?.nutrientLimitStatuses?.filter((item) => item.status !== "ok") || [];
+
+  const smartDiagnostics = result?.smartDiagnostics || [];
 
   const costWithProductionPerKg =
     result?.feasible ? result.costPerKg + productionCostPerKg : 0;
@@ -424,10 +437,31 @@ export default function ResultsTab({
         {!result ? (
           <p>Calculando fórmula...</p>
         ) : !result.feasible ? (
-          <div className="warning">
-            <strong>No se pudo formular.</strong>
-            <p style={{ whiteSpace: "pre-line" }}>{result.message}</p>
-          </div>
+          <>
+            <div className="warning">
+              <strong>No se pudo formular.</strong>
+              <p style={{ whiteSpace: "pre-line" }}>{result.message}</p>
+            </div>
+
+            {smartDiagnostics.length > 0 && (
+              <section className="card" style={{ marginTop: 18 }}>
+                <h2>🧠 Diagnóstico inteligente</h2>
+
+                {smartDiagnostics.map((item, index) => (
+                  <div
+                    key={`${item.title}_${index}`}
+                    className={smartDiagnosisClass(item.level)}
+                    style={{ marginTop: index === 0 ? 0 : 10 }}
+                  >
+                    <strong>{item.title}</strong>
+                    <p style={{ marginBottom: 8 }}>{item.message}</p>
+                    <strong>Acción sugerida:</strong>
+                    <p style={{ marginBottom: 0 }}>{item.action}</p>
+                  </div>
+                ))}
+              </section>
+            )}
+          </>
         ) : (
           <>
             <div className="stats">
@@ -485,6 +519,25 @@ export default function ResultsTab({
           </>
         )}
       </section>
+
+      {result?.feasible && smartDiagnostics.length > 0 && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>🧠 Diagnóstico inteligente</h2>
+
+          {smartDiagnostics.map((item, index) => (
+            <div
+              key={`${item.title}_${index}`}
+              className={smartDiagnosisClass(item.level)}
+              style={{ marginTop: index === 0 ? 0 : 10 }}
+            >
+              <strong>{item.title}</strong>
+              <p style={{ marginBottom: 8 }}>{item.message}</p>
+              <strong>Acción sugerida:</strong>
+              <p style={{ marginBottom: 0 }}>{item.action}</p>
+            </div>
+          ))}
+        </section>
+      )}
 
       {result?.feasible && (
         <section className="card" style={{ marginTop: 18 }}>
