@@ -49,6 +49,13 @@ type NutrientLimitStatus = {
   message: string;
 };
 
+type SmartDiagnosis = {
+  level: "info" | "warning" | "danger";
+  title: string;
+  message: string;
+  action: string;
+};
+
 export type FormulaResult = {
   feasible: boolean;
   costPerKg: number;
@@ -67,6 +74,7 @@ export type FormulaResult = {
   diagnostics?: NutrientDiagnostics[];
   ingredientLimitStatuses?: IngredientLimitStatus[];
   nutrientLimitStatuses?: NutrientLimitStatus[];
+  smartDiagnostics?: SmartDiagnosis[];
 };
 
 function emptyNutrients(): Record<NutrientKey, number> {
@@ -569,6 +577,321 @@ function buildNutrientLimitStatuses(
   });
 }
 
+function findFormulaIngredientAmount(
+  formulaIngredients: FormulaResult["ingredients"],
+  keywords: string[]
+) {
+  const item = formulaIngredients.find((ingredient) =>
+    keywords.some((keyword) =>
+      ingredient.name.toLowerCase().includes(keyword.toLowerCase())
+    )
+  );
+
+  return item?.amountKg100 || 0;
+}
+
+function hasIngredientAtMax(
+  ingredientStatuses: IngredientLimitStatus[],
+  keywords: string[]
+) {
+  return ingredientStatuses.some(
+    (ingredient) =>
+      ingredient.status === "max" &&
+      keywords.some((keyword) =>
+        ingredient.name.toLowerCase().includes(keyword.toLowerCase())
+      )
+  );
+}
+
+function hasNutrientStatus(
+  nutrientStatuses: NutrientLimitStatus[],
+  keys: NutrientKey[],
+  statuses: NutrientLimitStatus["status"][]
+) {
+  return nutrientStatuses.some(
+    (nutrient) => keys.includes(nutrient.key) && statuses.includes(nutrient.status)
+  );
+}
+
+function getProfileFlags(requirementName: string) {
+  const name = requirementName.toLowerCase();
+
+  return {
+    isLayer:
+      name.includes("ponedora") ||
+      name.includes("postura") ||
+      name.includes("gallina") ||
+      name.includes("hyline") ||
+      name.includes("hy-line") ||
+      name.includes("dekalb"),
+    isBroiler:
+      name.includes("cobb") ||
+      name.includes("broiler") ||
+      name.includes("pollo"),
+    isPig: name.includes("cerdo") || name.includes("porcino"),
+    isGuineaPig: name.includes("cuy"),
+    isSummer: name.includes("verano")
+  };
+}
+
+function buildSmartDiagnostics(
+  formulaIngredients: FormulaResult["ingredients"],
+  ingredientStatuses: IngredientLimitStatus[],
+  nutrientStatuses: NutrientLimitStatus[],
+  requirement: Requirement
+): SmartDiagnosis[] {
+  const diagnostics: SmartDiagnosis[] = [];
+  const profile = getProfileFlags(requirement.name);
+
+  const maxIngredients = ingredientStatuses.filter((item) => item.status === "max");
+  const minIngredients = ingredientStatuses.filter((item) => item.status === "min");
+  const nearMinimumNutrients = nutrientStatuses.filter(
+    (item) => item.status === "nearMin" || item.status === "below"
+  );
+  const nearMaximumNutrients = nutrientStatuses.filter(
+    (item) => item.status === "nearMax" || item.status === "above"
+  );
+
+  const oil = findFormulaIngredientAmount(formulaIngredients, ["aceite", "grasa"]);
+  const corn = findFormulaIngredientAmount(formulaIngredients, ["maíz", "maiz"]);
+  const soybean = findFormulaIngredientAmount(formulaIngredients, ["soya", "soja"]);
+  const carbonate = findFormulaIngredientAmount(formulaIngredients, ["carbonato"]);
+  const dcp = findFormulaIngredientAmount(formulaIngredients, [
+    "fosfato",
+    "dcp",
+    "dicálcico",
+    "dicalcico"
+  ]);
+
+  const energyTight = hasNutrientStatus(
+    nutrientStatuses,
+    ["energy"],
+    ["nearMin", "below", "nearMax", "above"]
+  );
+
+  const aminoTight = hasNutrientStatus(
+    nutrientStatuses,
+    [
+      "lysine",
+      "methionine",
+      "metCys",
+      "threonine",
+      "tryptophan",
+      "arginine",
+      "glycineSerine",
+      "histidine",
+      "isoleucine",
+      "leucine",
+      "phenylalanine",
+      "tyrosine",
+      "phenylalanineTyrosine",
+      "valine"
+    ],
+    ["nearMin", "below"]
+  );
+
+  const mineralsTight = hasNutrientStatus(
+    nutrientStatuses,
+    ["calcium", "availablePhosphorus", "sodium", "chlorine"],
+    ["nearMin", "below", "nearMax", "above"]
+  );
+
+  if (maxIngredients.length > 0) {
+    diagnostics.push({
+      level: "warning",
+      title: "Ingredientes pegados al máximo",
+      message: `El solver está usando al límite: ${maxIngredients
+        .map((item) => item.name)
+        .join(", ")}.`,
+      action:
+        "Si uno de esos insumos es barato o aporta el nutriente limitante, prueba subir su máximo por especie. Si es caro o riesgoso, deja el límite como está."
+    });
+  }
+
+  if (minIngredients.length > 0) {
+    diagnostics.push({
+      level: "info",
+      title: "Ingredientes obligados por mínimo",
+      message: `Estos ingredientes entraron porque tienen mínimo configurado: ${minIngredients
+        .map((item) => item.name)
+        .join(", ")}.`,
+      action:
+        "Si no quieres que entren sí o sí, baja su mínimo a 0. El mínimo debe usarse solo cuando técnicamente necesitas obligar un ingrediente."
+    });
+  }
+
+  if (energyTight) {
+    diagnostics.push({
+      level: "warning",
+      title: "Energía como posible cuello de botella",
+      message:
+        "La energía quedó muy ajustada o cerca de un límite. Esto suele empujar aceite, maíz o ingredientes energéticos.",
+      action:
+        "Revisa el mínimo y máximo de energía. También revisa el máximo de aceite, maíz o grasa. En verano, cuidado con subir demasiado aceite porque puede afectar consumo y mezcla."
+    });
+  }
+
+  if (aminoTight) {
+    diagnostics.push({
+      level: "warning",
+      title: "Aminoácidos limitantes",
+      message:
+        "Uno o más aminoácidos quedaron muy cerca del mínimo. La fórmula probablemente está buscando proteína o aminoácidos sintéticos.",
+      action:
+        "Revisa lisina, metionina, treonina y aminoácidos secundarios. Si usas valores digestibles, asegúrate de que requerimientos e ingredientes estén en la misma base."
+    });
+  }
+
+  if (mineralsTight) {
+    diagnostics.push({
+      level: "warning",
+      title: "Minerales ajustados",
+      message:
+        "Calcio, fósforo disponible, sodio o cloro están actuando como restricciones importantes.",
+      action:
+        "Revisa límites de carbonato, DCP, sal y bicarbonato. En ponedoras, separa el criterio técnico de calcio total, granulometría y consumo real."
+    });
+  }
+
+  if (hasIngredientAtMax(ingredientStatuses, ["soya", "soja"]) && aminoTight) {
+    diagnostics.push({
+      level: "danger",
+      title: "Soya al máximo y aminoácidos ajustados",
+      message:
+        "La torta de soya llegó al máximo mientras los aminoácidos siguen ajustados. Eso indica que la proteína o aminoácidos están empujando la fórmula.",
+      action:
+        "Prueba subir un poco el máximo de soya, permitir lisina/metionina/treonina sintética o revisar si el requerimiento está demasiado alto para los ingredientes disponibles."
+    });
+  }
+
+  if (hasIngredientAtMax(ingredientStatuses, ["maíz", "maiz"]) && energyTight) {
+    diagnostics.push({
+      level: "warning",
+      title: "Maíz al máximo y energía ajustada",
+      message:
+        "El maíz llegó al máximo y la energía sigue siendo importante. Puede faltar espacio para energía barata.",
+      action:
+        "Prueba subir el máximo de maíz, revisar la EM real del maíz o permitir aceite si la especie y el manejo lo toleran."
+    });
+  }
+
+  if (hasIngredientAtMax(ingredientStatuses, ["aceite", "grasa"]) && energyTight) {
+    diagnostics.push({
+      level: "danger",
+      title: "Aceite al máximo",
+      message:
+        "El aceite llegó al máximo. La fórmula probablemente necesita más energía, pero el techo de aceite la está frenando.",
+      action:
+        "No subas aceite automáticamente. Primero revisa mezcla, pellet, rancidez, consumo y si realmente el requerimiento energético es correcto."
+    });
+  }
+
+  if (profile.isLayer && carbonate < 6) {
+    diagnostics.push({
+      level: "danger",
+      title: "Ponedora con poco carbonato",
+      message:
+        "Para una ponedora en producción, el carbonato aparece bajo. Puede haber riesgo de calcio insuficiente o un perfil mal seleccionado.",
+      action:
+        "Revisa calcio mínimo, calcio máximo, carbonato fino/grueso, DCP y consumo esperado. También confirma que el perfil realmente sea de ponedora en producción."
+    });
+  }
+
+  if (profile.isLayer && carbonate > 11.5) {
+    diagnostics.push({
+      level: "warning",
+      title: "Carbonato alto en ponedora",
+      message:
+        "El carbonato está alto. Puede ser normal en ponedora, pero también puede estar forzando la fórmula.",
+      action:
+        "Revisa calcio total, fósforo disponible, granulometría del carbonato y consumo diario de alimento."
+    });
+  }
+
+  if (profile.isPig && soybean > 28) {
+    diagnostics.push({
+      level: "warning",
+      title: "Soya alta en cerdo",
+      message:
+        "La torta de soya está alta para cerdo. Puede ser necesario, pero también puede encarecer o afectar la fórmula según fase.",
+      action:
+        "Revisa lisina digestible, treonina, energía y si conviene usar aminoácidos sintéticos para bajar proteína total."
+    });
+  }
+
+  if (profile.isBroiler && oil > 5.5) {
+    diagnostics.push({
+      level: "warning",
+      title: "Aceite alto en pollo",
+      message:
+        "El aceite está alto. Puede ayudar a energía, pero exige buena mezcla y control de calidad.",
+      action:
+        "Revisa peletizado, estabilidad, rancidez y si el consumo esperado justifica esa densidad energética."
+    });
+  }
+
+  if (dcp <= 0.001 && requirement.availablePhosphorus > 0.3) {
+    diagnostics.push({
+      level: "info",
+      title: "Fósforo sin DCP",
+      message:
+        "La fórmula no está usando fosfato/DCP aunque el fósforo disponible requerido no es bajo.",
+      action:
+        "Si estás usando fitasa como ingrediente con matriz nutricional, puede estar bien. Si no, revisa el fósforo disponible de tus insumos."
+    });
+  }
+
+  if (corn > 78) {
+    diagnostics.push({
+      level: "info",
+      title: "Fórmula muy cargada a maíz",
+      message:
+        "El maíz está muy alto. Esto suele bajar costo, pero puede dejar aminoácidos y fósforo más ajustados.",
+      action:
+        "Revisa aminoácidos, fósforo disponible y la calidad real del maíz, especialmente si es importado o muy variable."
+    });
+  }
+
+  if (nearMinimumNutrients.length > 0) {
+    diagnostics.push({
+      level: "info",
+      title: "Nutrientes que mandan el costo",
+      message: `Los nutrientes más ajustados al mínimo son: ${nearMinimumNutrients
+        .slice(0, 6)
+        .map((item) => item.label)
+        .join(", ")}.`,
+      action:
+        "Estos nutrientes son candidatos a revisar primero cuando la fórmula salga cara o no cierre."
+    });
+  }
+
+  if (nearMaximumNutrients.length > 0) {
+    diagnostics.push({
+      level: "warning",
+      title: "Techos nutricionales activos",
+      message: `Los nutrientes cerca del máximo son: ${nearMaximumNutrients
+        .slice(0, 6)
+        .map((item) => item.label)
+        .join(", ")}.`,
+      action:
+        "Si el solver se bloquea, estos máximos pueden estar cerrando demasiado la jaula."
+    });
+  }
+
+  if (diagnostics.length === 0) {
+    diagnostics.push({
+      level: "info",
+      title: "Fórmula sin cuello de botella fuerte",
+      message:
+        "No se detectó un bloqueo evidente. La fórmula parece tener margen técnico razonable.",
+      action:
+        "Igual revisa calidad de ingredientes, límites por especie, consumo esperado y criterio práctico antes de producir."
+    });
+  }
+
+  return diagnostics;
+}
+
 export function solveFormula(
   ingredients: Ingredient[],
   requirement: Requirement
@@ -581,7 +904,16 @@ export function solveFormula(
       costPer50Kg: 0,
       ingredients: [],
       nutrients: emptyNutrients(),
-      message: "No hay ingredientes activos para formular."
+      message: "No hay ingredientes activos para formular.",
+      smartDiagnostics: [
+        {
+          level: "danger",
+          title: "Sin ingredientes activos",
+          message: "No hay ingredientes disponibles para que el solver formule.",
+          action:
+            "Activa ingredientes en Formular o marca especies en la Matriz para este perfil."
+        }
+      ]
     };
   }
 
@@ -598,7 +930,17 @@ export function solveFormula(
       ingredients: [],
       nutrients: emptyNutrients(),
       message: failure.message,
-      diagnostics: failure.diagnostics
+      diagnostics: failure.diagnostics,
+      smartDiagnostics: [
+        {
+          level: "danger",
+          title: "Fórmula bloqueada",
+          message:
+            "El solver no encontró una combinación posible con los mínimos, máximos y requerimientos actuales.",
+          action:
+            "Revisa primero suma de mínimos, suma de máximos, nutrientes imposibles y máximos demasiado cerrados en ingredientes clave."
+        }
+      ]
     };
   }
 
@@ -634,6 +976,13 @@ export function solveFormula(
     0
   );
 
+  const ingredientLimitStatuses = buildIngredientLimitStatuses(
+    ingredients,
+    formulaIngredients
+  );
+
+  const nutrientLimitStatuses = buildNutrientLimitStatuses(nutrients, requirement);
+
   return {
     feasible: true,
     costPerKg: costPer100Kg / 100,
@@ -641,10 +990,13 @@ export function solveFormula(
     costPer50Kg: costPer100Kg / 2,
     ingredients: formulaIngredients,
     nutrients,
-    ingredientLimitStatuses: buildIngredientLimitStatuses(
-      ingredients,
-      formulaIngredients
-    ),
-    nutrientLimitStatuses: buildNutrientLimitStatuses(nutrients, requirement)
+    ingredientLimitStatuses,
+    nutrientLimitStatuses,
+    smartDiagnostics: buildSmartDiagnostics(
+      formulaIngredients,
+      ingredientLimitStatuses,
+      nutrientLimitStatuses,
+      requirement
+    )
   };
 }
