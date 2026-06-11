@@ -56,6 +56,16 @@ type SmartDiagnosis = {
   action: string;
 };
 
+type ShadowPriceStatus = {
+  id: string;
+  type: "nutrientMin" | "nutrientMax" | "ingredientMin" | "ingredientMax";
+  name: string;
+  currentLimit: number;
+  relaxedLimit: number;
+  estimatedSavingPer100Kg: number;
+  message: string;
+};
+
 export type FormulaResult = {
   feasible: boolean;
   costPerKg: number;
@@ -75,6 +85,7 @@ export type FormulaResult = {
   ingredientLimitStatuses?: IngredientLimitStatus[];
   nutrientLimitStatuses?: NutrientLimitStatus[];
   smartDiagnostics?: SmartDiagnosis[];
+  shadowPriceStatuses?: ShadowPriceStatus[];
 };
 
 function emptyNutrients(): Record<NutrientKey, number> {
@@ -100,6 +111,11 @@ function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
 
 function decimalsForNutrient(key: NutrientKey) {
   return key === "energy" ? 0 : 2;
+}
+
+function shadowDeltaForNutrient(key: NutrientKey) {
+  if (key === "energy") return 10;
+  return 0.01;
 }
 
 function calculateFormulaNutrients(
@@ -138,6 +154,16 @@ function calculatePossibleNutrients(
   }
 
   return possible;
+}
+
+function calculateSolverCostPer100Kg(
+  result: Record<string, number | boolean>,
+  ingredients: Ingredient[]
+) {
+  return ingredients.reduce((sum, ingredient) => {
+    const amountKg100 = Number(result[ingredient.id] || 0);
+    return sum + amountKg100 * Number(ingredient.price || 0);
+  }, 0);
 }
 
 function buildDiagnostics(
@@ -727,7 +753,7 @@ function buildSmartDiagnostics(
       message:
         "La energía quedó muy ajustada o cerca de un límite. Esto suele empujar aceite, maíz o ingredientes energéticos.",
       action:
-        "Revisa el mínimo y máximo de energía. También revisa el máximo de aceite, maíz o grasa. En verano, cuidado con subir demasiado aceite porque puede afectar consumo y mezcla."
+        "Revisa el mínimo y máximo de energía. También revisa el máximo de aceite, maíz o grasa."
     });
   }
 
@@ -749,7 +775,7 @@ function buildSmartDiagnostics(
       message:
         "Calcio, fósforo disponible, sodio o cloro están actuando como restricciones importantes.",
       action:
-        "Revisa límites de carbonato, DCP, sal y bicarbonato. En ponedoras, separa el criterio técnico de calcio total, granulometría y consumo real."
+        "Revisa límites de carbonato, DCP, sal y bicarbonato."
     });
   }
 
@@ -758,9 +784,9 @@ function buildSmartDiagnostics(
       level: "danger",
       title: "Soya al máximo y aminoácidos ajustados",
       message:
-        "La torta de soya llegó al máximo mientras los aminoácidos siguen ajustados. Eso indica que la proteína o aminoácidos están empujando la fórmula.",
+        "La torta de soya llegó al máximo mientras los aminoácidos siguen ajustados.",
       action:
-        "Prueba subir un poco el máximo de soya, permitir lisina/metionina/treonina sintética o revisar si el requerimiento está demasiado alto para los ingredientes disponibles."
+        "Prueba subir un poco el máximo de soya, permitir lisina/metionina/treonina sintética o revisar si el requerimiento está demasiado alto."
     });
   }
 
@@ -769,7 +795,7 @@ function buildSmartDiagnostics(
       level: "warning",
       title: "Maíz al máximo y energía ajustada",
       message:
-        "El maíz llegó al máximo y la energía sigue siendo importante. Puede faltar espacio para energía barata.",
+        "El maíz llegó al máximo y la energía sigue siendo importante.",
       action:
         "Prueba subir el máximo de maíz, revisar la EM real del maíz o permitir aceite si la especie y el manejo lo toleran."
     });
@@ -791,9 +817,9 @@ function buildSmartDiagnostics(
       level: "danger",
       title: "Ponedora con poco carbonato",
       message:
-        "Para una ponedora en producción, el carbonato aparece bajo. Puede haber riesgo de calcio insuficiente o un perfil mal seleccionado.",
+        "Para una ponedora en producción, el carbonato aparece bajo.",
       action:
-        "Revisa calcio mínimo, calcio máximo, carbonato fino/grueso, DCP y consumo esperado. También confirma que el perfil realmente sea de ponedora en producción."
+        "Revisa calcio mínimo, calcio máximo, carbonato fino/grueso, DCP y consumo esperado."
     });
   }
 
@@ -804,7 +830,7 @@ function buildSmartDiagnostics(
       message:
         "El carbonato está alto. Puede ser normal en ponedora, pero también puede estar forzando la fórmula.",
       action:
-        "Revisa calcio total, fósforo disponible, granulometría del carbonato y consumo diario de alimento."
+        "Revisa calcio total, fósforo disponible, granulometría del carbonato y consumo diario."
     });
   }
 
@@ -813,7 +839,7 @@ function buildSmartDiagnostics(
       level: "warning",
       title: "Soya alta en cerdo",
       message:
-        "La torta de soya está alta para cerdo. Puede ser necesario, pero también puede encarecer o afectar la fórmula según fase.",
+        "La torta de soya está alta para cerdo.",
       action:
         "Revisa lisina digestible, treonina, energía y si conviene usar aminoácidos sintéticos para bajar proteína total."
     });
@@ -848,7 +874,7 @@ function buildSmartDiagnostics(
       message:
         "El maíz está muy alto. Esto suele bajar costo, pero puede dejar aminoácidos y fósforo más ajustados.",
       action:
-        "Revisa aminoácidos, fósforo disponible y la calidad real del maíz, especialmente si es importado o muy variable."
+        "Revisa aminoácidos, fósforo disponible y la calidad real del maíz."
     });
   }
 
@@ -890,6 +916,174 @@ function buildSmartDiagnostics(
   }
 
   return diagnostics;
+}
+
+function buildShadowPrices(
+  ingredients: Ingredient[],
+  requirement: Requirement,
+  baseCostPer100Kg: number,
+  nutrientStatuses: NutrientLimitStatus[],
+  ingredientStatuses: IngredientLimitStatus[]
+): ShadowPriceStatus[] {
+  const shadowPrices: ShadowPriceStatus[] = [];
+
+  for (const nutrient of nutrientStatuses) {
+    const key = nutrient.key;
+    const delta = shadowDeltaForNutrient(key);
+
+    if (nutrient.status === "nearMin") {
+      const currentLimit = getRequirementValue(requirement, key);
+      if (currentLimit > 0) {
+        const relaxedRequirement = {
+          ...requirement,
+          [key]: Math.max(0, currentLimit - delta)
+        };
+
+        const relaxedResult = runSolver(ingredients, relaxedRequirement);
+
+        if (relaxedResult.feasible) {
+          const relaxedCost = calculateSolverCostPer100Kg(
+            relaxedResult,
+            ingredients
+          );
+          const saving = baseCostPer100Kg - relaxedCost;
+
+          if (saving > 0.0001) {
+            shadowPrices.push({
+              id: `nutrient_min_${key}`,
+              type: "nutrientMin",
+              name: nutrient.label,
+              currentLimit,
+              relaxedLimit: Math.max(0, currentLimit - delta),
+              estimatedSavingPer100Kg: saving,
+              message: `Si bajas un poquito el mínimo de ${nutrient.label}, el costo podría bajar aprox. S/ ${saving.toFixed(
+                3
+              )} por cada 100 kg.`
+            });
+          }
+        }
+      }
+    }
+
+    if (nutrient.status === "nearMax" && typeof nutrient.max === "number") {
+      const currentLimit = nutrient.max;
+      const maxKey = `${key}Max` as keyof Requirement;
+
+      const relaxedRequirement = {
+        ...requirement,
+        [maxKey]: currentLimit + delta
+      };
+
+      const relaxedResult = runSolver(ingredients, relaxedRequirement);
+
+      if (relaxedResult.feasible) {
+        const relaxedCost = calculateSolverCostPer100Kg(
+          relaxedResult,
+          ingredients
+        );
+        const saving = baseCostPer100Kg - relaxedCost;
+
+        if (saving > 0.0001) {
+          shadowPrices.push({
+            id: `nutrient_max_${key}`,
+            type: "nutrientMax",
+            name: nutrient.label,
+            currentLimit,
+            relaxedLimit: currentLimit + delta,
+            estimatedSavingPer100Kg: saving,
+            message: `Si subes un poquito el máximo de ${nutrient.label}, el costo podría bajar aprox. S/ ${saving.toFixed(
+              3
+            )} por cada 100 kg.`
+          });
+        }
+      }
+    }
+  }
+
+  for (const ingredientStatus of ingredientStatuses) {
+    const ingredient = ingredients.find((item) => item.id === ingredientStatus.id);
+    if (!ingredient) continue;
+
+    if (ingredientStatus.status === "max") {
+      const delta = 0.1;
+      const relaxedIngredients = ingredients.map((item) =>
+        item.id === ingredient.id
+          ? {
+              ...item,
+              max: Number(item.max || 0) + delta
+            }
+          : item
+      );
+
+      const relaxedResult = runSolver(relaxedIngredients, requirement);
+
+      if (relaxedResult.feasible) {
+        const relaxedCost = calculateSolverCostPer100Kg(
+          relaxedResult,
+          relaxedIngredients
+        );
+        const saving = baseCostPer100Kg - relaxedCost;
+
+        if (saving > 0.0001) {
+          shadowPrices.push({
+            id: `ingredient_max_${ingredient.id}`,
+            type: "ingredientMax",
+            name: ingredient.name,
+            currentLimit: Number(ingredient.max || 0),
+            relaxedLimit: Number(ingredient.max || 0) + delta,
+            estimatedSavingPer100Kg: saving,
+            message: `Si subes el máximo de ${ingredient.name} en 0.1%, el costo podría bajar aprox. S/ ${saving.toFixed(
+              3
+            )} por cada 100 kg.`
+          });
+        }
+      }
+    }
+
+    if (ingredientStatus.status === "min") {
+      const delta = 0.1;
+      const currentMin = Number(ingredient.min || 0);
+
+      if (currentMin > 0) {
+        const relaxedIngredients = ingredients.map((item) =>
+          item.id === ingredient.id
+            ? {
+                ...item,
+                min: Math.max(0, Number(item.min || 0) - delta)
+              }
+            : item
+        );
+
+        const relaxedResult = runSolver(relaxedIngredients, requirement);
+
+        if (relaxedResult.feasible) {
+          const relaxedCost = calculateSolverCostPer100Kg(
+            relaxedResult,
+            relaxedIngredients
+          );
+          const saving = baseCostPer100Kg - relaxedCost;
+
+          if (saving > 0.0001) {
+            shadowPrices.push({
+              id: `ingredient_min_${ingredient.id}`,
+              type: "ingredientMin",
+              name: ingredient.name,
+              currentLimit: currentMin,
+              relaxedLimit: Math.max(0, currentMin - delta),
+              estimatedSavingPer100Kg: saving,
+              message: `Si bajas el mínimo obligatorio de ${ingredient.name} en 0.1%, el costo podría bajar aprox. S/ ${saving.toFixed(
+                3
+              )} por cada 100 kg.`
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return shadowPrices
+    .sort((a, b) => b.estimatedSavingPer100Kg - a.estimatedSavingPer100Kg)
+    .slice(0, 12);
 }
 
 export function solveFormula(
@@ -983,6 +1177,14 @@ export function solveFormula(
 
   const nutrientLimitStatuses = buildNutrientLimitStatuses(nutrients, requirement);
 
+  const shadowPriceStatuses = buildShadowPrices(
+    ingredients,
+    requirement,
+    costPer100Kg,
+    nutrientLimitStatuses,
+    ingredientLimitStatuses
+  );
+
   return {
     feasible: true,
     costPerKg: costPer100Kg / 100,
@@ -992,6 +1194,7 @@ export function solveFormula(
     nutrients,
     ingredientLimitStatuses,
     nutrientLimitStatuses,
+    shadowPriceStatuses,
     smartDiagnostics: buildSmartDiagnostics(
       formulaIngredients,
       ingredientLimitStatuses,
