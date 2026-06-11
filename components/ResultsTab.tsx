@@ -540,9 +540,9 @@ export default function ResultsTab({
           <h2>💰 Precio sombra práctico</h2>
 
           <div className="note" style={{ marginBottom: 12 }}>
-            Esto estima qué límite está encareciendo la fórmula. No es magia
-            negra de universidad: FeedGenio prueba aflojar un poquito cada
-            restricción y mide cuánto baja el costo.
+            Esto estima qué límite está encareciendo la fórmula. FeedGenio
+            prueba aflojar un poquito cada restricción y mide cuánto baja el
+            costo.
           </div>
 
           {shadowPriceStatuses.map((item, index) => (
