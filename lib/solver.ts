@@ -794,8 +794,7 @@ function buildSmartDiagnostics(
     diagnostics.push({
       level: "warning",
       title: "Maíz al máximo y energía ajustada",
-      message:
-        "El maíz llegó al máximo y la energía sigue siendo importante.",
+      message: "El maíz llegó al máximo y la energía sigue siendo importante.",
       action:
         "Prueba subir el máximo de maíz, revisar la EM real del maíz o permitir aceite si la especie y el manejo lo toleran."
     });
@@ -816,8 +815,7 @@ function buildSmartDiagnostics(
     diagnostics.push({
       level: "danger",
       title: "Ponedora con poco carbonato",
-      message:
-        "Para una ponedora en producción, el carbonato aparece bajo.",
+      message: "Para una ponedora en producción, el carbonato aparece bajo.",
       action:
         "Revisa calcio mínimo, calcio máximo, carbonato fino/grueso, DCP y consumo esperado."
     });
@@ -838,8 +836,7 @@ function buildSmartDiagnostics(
     diagnostics.push({
       level: "warning",
       title: "Soya alta en cerdo",
-      message:
-        "La torta de soya está alta para cerdo.",
+      message: "La torta de soya está alta para cerdo.",
       action:
         "Revisa lisina digestible, treonina, energía y si conviene usar aminoácidos sintéticos para bajar proteína total."
     });
@@ -933,6 +930,7 @@ function buildShadowPrices(
 
     if (nutrient.status === "nearMin") {
       const currentLimit = getRequirementValue(requirement, key);
+
       if (currentLimit > 0) {
         const relaxedRequirement = {
           ...requirement,
