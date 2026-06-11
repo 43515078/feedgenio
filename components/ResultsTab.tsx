@@ -339,6 +339,20 @@ function buildSummary(
   lines.push(`Precio venta sugerido saco 50 kg: S/ ${round(salePer50Kg, 2)}`);
   lines.push(`Precio venta sugerido por kg: S/ ${round(salePerKg, 3)}`);
 
+  if (result.shadowPriceStatuses && result.shadowPriceStatuses.length > 0) {
+    lines.push("");
+    lines.push("Precio sombra práctico:");
+
+    result.shadowPriceStatuses.forEach((item) => {
+      lines.push(
+        `- ${item.name}: ahorro estimado S/ ${round(
+          item.estimatedSavingPer100Kg,
+          3
+        )} por 100 kg. ${item.message}`
+      );
+    });
+  }
+
   if (result.smartDiagnostics && result.smartDiagnostics.length > 0) {
     lines.push("");
     lines.push("Diagnóstico inteligente:");
@@ -391,6 +405,7 @@ export default function ResultsTab({
     result?.nutrientLimitStatuses?.filter((item) => item.status !== "ok") || [];
 
   const smartDiagnostics = result?.smartDiagnostics || [];
+  const shadowPriceStatuses = result?.shadowPriceStatuses || [];
 
   const costWithProductionPerKg =
     result?.feasible ? result.costPerKg + productionCostPerKg : 0;
@@ -519,6 +534,38 @@ export default function ResultsTab({
           </>
         )}
       </section>
+
+      {result?.feasible && shadowPriceStatuses.length > 0 && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>💰 Precio sombra práctico</h2>
+
+          <div className="note" style={{ marginBottom: 12 }}>
+            Esto estima qué límite está encareciendo la fórmula. No es magia
+            negra de universidad: FeedGenio prueba aflojar un poquito cada
+            restricción y mide cuánto baja el costo.
+          </div>
+
+          {shadowPriceStatuses.map((item, index) => (
+            <div
+              key={item.id}
+              className="note"
+              style={{ marginTop: index === 0 ? 0 : 10 }}
+            >
+              <strong>{item.name}</strong>
+              <p style={{ marginBottom: 8 }}>{item.message}</p>
+              <p style={{ marginBottom: 0 }}>
+                Límite actual: <strong>{round(item.currentLimit, 3)}</strong>{" "}
+                → probado: <strong>{round(item.relaxedLimit, 3)}</strong>
+                <br />
+                Ahorro estimado:{" "}
+                <strong>
+                  S/ {round(item.estimatedSavingPer100Kg, 3)} por 100 kg
+                </strong>
+              </p>
+            </div>
+          ))}
+        </section>
+      )}
 
       {result?.feasible && smartDiagnostics.length > 0 && (
         <section className="card" style={{ marginTop: 18 }}>
