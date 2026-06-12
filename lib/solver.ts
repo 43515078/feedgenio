@@ -66,6 +66,14 @@ type ShadowPriceStatus = {
   message: string;
 };
 
+type SafetyStatus = {
+  id: string;
+  level: "info" | "warning" | "danger";
+  title: string;
+  message: string;
+  action: string;
+};
+
 export type FormulaResult = {
   feasible: boolean;
   costPerKg: number;
@@ -86,6 +94,7 @@ export type FormulaResult = {
   nutrientLimitStatuses?: NutrientLimitStatus[];
   smartDiagnostics?: SmartDiagnosis[];
   shadowPriceStatuses?: ShadowPriceStatus[];
+  safetyStatuses?: SafetyStatus[];
 };
 
 function emptyNutrients(): Record<NutrientKey, number> {
@@ -774,8 +783,7 @@ function buildSmartDiagnostics(
       title: "Minerales ajustados",
       message:
         "Calcio, fósforo disponible, sodio o cloro están actuando como restricciones importantes.",
-      action:
-        "Revisa límites de carbonato, DCP, sal y bicarbonato."
+      action: "Revisa límites de carbonato, DCP, sal y bicarbonato."
     });
   }
 
@@ -1084,6 +1092,169 @@ function buildShadowPrices(
     .slice(0, 12);
 }
 
+function buildSafetyStatuses(
+  formulaIngredients: FormulaResult["ingredients"],
+  nutrientStatuses: NutrientLimitStatus[],
+  shadowPrices: ShadowPriceStatus[],
+  requirement: Requirement
+): SafetyStatus[] {
+  const safety: SafetyStatus[] = [];
+  const profile = getProfileFlags(requirement.name);
+
+  const belowNutrients = nutrientStatuses.filter((item) => item.status === "below");
+  const aboveNutrients = nutrientStatuses.filter((item) => item.status === "above");
+  const nearMinimumNutrients = nutrientStatuses.filter(
+    (item) => item.status === "nearMin"
+  );
+
+  const oil = findFormulaIngredientAmount(formulaIngredients, ["aceite", "grasa"]);
+  const salt = findFormulaIngredientAmount(formulaIngredients, ["sal"]);
+  const carbonate = findFormulaIngredientAmount(formulaIngredients, ["carbonato"]);
+  const soybean = findFormulaIngredientAmount(formulaIngredients, ["soya", "soja"]);
+
+  if (belowNutrients.length > 0) {
+    safety.push({
+      id: "nutrients_below_minimum",
+      level: "danger",
+      title: "Nutriente por debajo del mínimo",
+      message: `Hay nutrientes debajo del mínimo: ${belowNutrients
+        .map((item) => item.label)
+        .join(", ")}.`,
+      action:
+        "No producir esta fórmula hasta corregir esos mínimos. Puede comprometer rendimiento, crecimiento, postura o salud."
+    });
+  }
+
+  if (aboveNutrients.length > 0) {
+    safety.push({
+      id: "nutrients_above_maximum",
+      level: "danger",
+      title: "Nutriente por encima del máximo",
+      message: `Hay nutrientes sobre el máximo: ${aboveNutrients
+        .map((item) => item.label)
+        .join(", ")}.`,
+      action:
+        "No producir sin revisar. Un exceso puede ser tan malo como una deficiencia, sobre todo en minerales, sal, calcio o energía."
+    });
+  }
+
+  if (shadowPrices.length > 0) {
+    safety.push({
+      id: "shadow_price_warning",
+      level: "warning",
+      title: "Precio sombra es solo simulación",
+      message:
+        "El precio sombra muestra dónde bajaría el costo si aflojas una restricción, pero no significa que sea seguro hacerlo.",
+      action:
+        "Usa el precio sombra como brújula económica. Antes de bajar un mínimo o subir un máximo, valida si el cambio respeta la fase, especie, clima, consumo esperado y calidad de ingredientes."
+    });
+  }
+
+  const shadowOnMinimums = shadowPrices.filter(
+    (item) => item.type === "nutrientMin"
+  );
+
+  if (shadowOnMinimums.length > 0) {
+    safety.push({
+      id: "shadow_minimum_relaxation",
+      level: "warning",
+      title: "Ahorro por bajar mínimos nutricionales",
+      message: `El sistema detectó ahorro potencial bajando mínimos de: ${shadowOnMinimums
+        .slice(0, 5)
+        .map((item) => item.name)
+        .join(", ")}.`,
+      action:
+        "Bajar mínimos puede ahorrar dinero, pero también puede bajar desempeño. Si lo haces, que sea por criterio técnico y no solo por precio."
+    });
+  }
+
+  if (nearMinimumNutrients.length >= 5) {
+    safety.push({
+      id: "many_tight_nutrients",
+      level: "warning",
+      title: "Fórmula muy ajustada",
+      message:
+        "Varios nutrientes quedaron pegados al mínimo. La fórmula puede ser económica, pero tiene poco colchón ante variación real de insumos.",
+      action:
+        "Si los ingredientes son variables, considera dejar un pequeño margen de seguridad en aminoácidos, energía o minerales críticos."
+    });
+  }
+
+  if (profile.isLayer && carbonate < 6) {
+    safety.push({
+      id: "layer_low_carbonate",
+      level: "danger",
+      title: "Ponedora con carbonato bajo",
+      message:
+        "El carbonato aparece bajo para una ponedora en producción. Esto puede afectar calcio disponible y calidad de cáscara.",
+      action:
+        "Revisa calcio total, consumo diario, DCP y carbonato grueso/fino antes de producir."
+    });
+  }
+
+  if (profile.isLayer && carbonate > 12) {
+    safety.push({
+      id: "layer_high_carbonate",
+      level: "warning",
+      title: "Carbonato muy alto",
+      message:
+        "El carbonato está muy alto. Puede ser necesario en postura, pero puede desplazar otros nutrientes.",
+      action:
+        "Revisa calcio total, fósforo disponible, granulometría y consumo real."
+    });
+  }
+
+  if ((profile.isBroiler || profile.isPig) && soybean > 35) {
+    safety.push({
+      id: "soybean_high_non_layer",
+      level: "warning",
+      title: "Soya muy alta",
+      message:
+        "La torta de soya está muy alta. Puede ser correcto en ciertas fases, pero también puede elevar proteína, costo o problemas digestivos.",
+      action:
+        "Revisa lisina digestible, treonina, energía y posibilidad de aminoácidos sintéticos."
+    });
+  }
+
+  if (oil > 5.5) {
+    safety.push({
+      id: "oil_high",
+      level: "warning",
+      title: "Aceite alto",
+      message:
+        "El aceite está alto. Puede ayudar a energía, pero exige buena mezcla, estabilidad y control de rancidez.",
+      action:
+        "Antes de producir, revisa mezclado, pellet, almacenamiento, consumo esperado y calidad del aceite."
+    });
+  }
+
+  if (salt > 0.5) {
+    safety.push({
+      id: "salt_high",
+      level: "danger",
+      title: "Sal alta",
+      message:
+        "La sal está alta. Esto puede subir sodio y cloro, aumentar consumo de agua y generar cama húmeda o diarrea.",
+      action:
+        "Revisa sodio, cloro, bicarbonato, sal y calidad de agua antes de producir."
+    });
+  }
+
+  if (safety.length === 0) {
+    safety.push({
+      id: "safety_ok",
+      level: "info",
+      title: "Control de seguridad sin alertas fuertes",
+      message:
+        "No se detectaron señales críticas de seguridad nutricional en esta fórmula.",
+      action:
+        "Igual valida con criterio técnico, consumo real, calidad de insumos y experiencia de campo antes de producir."
+    });
+  }
+
+  return safety;
+}
+
 export function solveFormula(
   ingredients: Ingredient[],
   requirement: Requirement
@@ -1104,6 +1275,16 @@ export function solveFormula(
           message: "No hay ingredientes disponibles para que el solver formule.",
           action:
             "Activa ingredientes en Formular o marca especies en la Matriz para este perfil."
+        }
+      ],
+      safetyStatuses: [
+        {
+          id: "no_active_ingredients",
+          level: "danger",
+          title: "Sin ingredientes activos",
+          message: "No hay ingredientes activos para formular.",
+          action:
+            "Activa ingredientes y revisa que estén marcados para la especie del perfil."
         }
       ]
     };
@@ -1131,6 +1312,17 @@ export function solveFormula(
             "El solver no encontró una combinación posible con los mínimos, máximos y requerimientos actuales.",
           action:
             "Revisa primero suma de mínimos, suma de máximos, nutrientes imposibles y máximos demasiado cerrados en ingredientes clave."
+        }
+      ],
+      safetyStatuses: [
+        {
+          id: "formula_not_feasible",
+          level: "danger",
+          title: "No producir",
+          message:
+            "La fórmula no cerró. No existe una combinación posible con los datos actuales.",
+          action:
+            "Corrige límites o requerimientos antes de usar esta fórmula en producción."
         }
       ]
     };
@@ -1183,6 +1375,13 @@ export function solveFormula(
     ingredientLimitStatuses
   );
 
+  const safetyStatuses = buildSafetyStatuses(
+    formulaIngredients,
+    nutrientLimitStatuses,
+    shadowPriceStatuses,
+    requirement
+  );
+
   return {
     feasible: true,
     costPerKg: costPer100Kg / 100,
@@ -1193,6 +1392,7 @@ export function solveFormula(
     ingredientLimitStatuses,
     nutrientLimitStatuses,
     shadowPriceStatuses,
+    safetyStatuses,
     smartDiagnostics: buildSmartDiagnostics(
       formulaIngredients,
       ingredientLimitStatuses,
