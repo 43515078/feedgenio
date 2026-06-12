@@ -339,6 +339,15 @@ function buildSummary(
   lines.push(`Precio venta sugerido saco 50 kg: S/ ${round(salePer50Kg, 2)}`);
   lines.push(`Precio venta sugerido por kg: S/ ${round(salePerKg, 3)}`);
 
+  if (result.safetyStatuses && result.safetyStatuses.length > 0) {
+    lines.push("");
+    lines.push("Control de seguridad nutricional:");
+
+    result.safetyStatuses.forEach((item) => {
+      lines.push(`- ${item.title}: ${item.message} Acción: ${item.action}`);
+    });
+  }
+
   if (result.shadowPriceStatuses && result.shadowPriceStatuses.length > 0) {
     lines.push("");
     lines.push("Precio sombra práctico:");
@@ -406,6 +415,7 @@ export default function ResultsTab({
 
   const smartDiagnostics = result?.smartDiagnostics || [];
   const shadowPriceStatuses = result?.shadowPriceStatuses || [];
+  const safetyStatuses = result?.safetyStatuses || [];
 
   const costWithProductionPerKg =
     result?.feasible ? result.costPerKg + productionCostPerKg : 0;
@@ -457,6 +467,25 @@ export default function ResultsTab({
               <strong>No se pudo formular.</strong>
               <p style={{ whiteSpace: "pre-line" }}>{result.message}</p>
             </div>
+
+            {safetyStatuses.length > 0 && (
+              <section className="card" style={{ marginTop: 18 }}>
+                <h2>🛡️ Control de seguridad nutricional</h2>
+
+                {safetyStatuses.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={smartDiagnosisClass(item.level)}
+                    style={{ marginTop: index === 0 ? 0 : 10 }}
+                  >
+                    <strong>{item.title}</strong>
+                    <p style={{ marginBottom: 8 }}>{item.message}</p>
+                    <strong>Acción sugerida:</strong>
+                    <p style={{ marginBottom: 0 }}>{item.action}</p>
+                  </div>
+                ))}
+              </section>
+            )}
 
             {smartDiagnostics.length > 0 && (
               <section className="card" style={{ marginTop: 18 }}>
@@ -534,6 +563,30 @@ export default function ResultsTab({
           </>
         )}
       </section>
+
+      {result?.feasible && safetyStatuses.length > 0 && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>🛡️ Control de seguridad nutricional</h2>
+
+          <div className="note" style={{ marginBottom: 12 }}>
+            Este bloque no cambia la fórmula. Solo avisa si hay señales de
+            riesgo antes de producir.
+          </div>
+
+          {safetyStatuses.map((item, index) => (
+            <div
+              key={item.id}
+              className={smartDiagnosisClass(item.level)}
+              style={{ marginTop: index === 0 ? 0 : 10 }}
+            >
+              <strong>{item.title}</strong>
+              <p style={{ marginBottom: 8 }}>{item.message}</p>
+              <strong>Acción sugerida:</strong>
+              <p style={{ marginBottom: 0 }}>{item.action}</p>
+            </div>
+          ))}
+        </section>
+      )}
 
       {result?.feasible && shadowPriceStatuses.length > 0 && (
         <section className="card" style={{ marginTop: 18 }}>
