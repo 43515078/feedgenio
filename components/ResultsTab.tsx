@@ -30,6 +30,15 @@ type Alert = {
   message: string;
 };
 
+type ComparisonSnapshot = {
+  name: string;
+  costPerKg: number;
+  costPer100Kg: number;
+  costPer50Kg: number;
+  ingredients: FormulaResult["ingredients"];
+  nutrients: Record<NutrientKey, number>;
+};
+
 function round(value: number, decimals = 2) {
   return Number(value).toFixed(decimals);
 }
@@ -299,6 +308,27 @@ function smartDiagnosisClass(level: "info" | "warning" | "danger") {
   return "note";
 }
 
+function buildSnapshot(
+  result: FormulaResult,
+  requirementName: string
+): ComparisonSnapshot {
+  return {
+    name: requirementName,
+    costPerKg: result.costPerKg,
+    costPer100Kg: result.costPer100Kg,
+    costPer50Kg: result.costPer50Kg,
+    ingredients: result.ingredients,
+    nutrients: result.nutrients
+  };
+}
+
+function getIngredientAmount(
+  ingredients: FormulaResult["ingredients"],
+  id: string
+) {
+  return ingredients.find((item) => item.id === id)?.amountKg100 || 0;
+}
+
 function buildSummary(
   result: FormulaResult,
   requirement: Requirement,
@@ -399,6 +429,9 @@ export default function ResultsTab({
   const [productionCostPerKg, setProductionCostPerKg] = useState(0);
   const [bagCostPer50Kg, setBagCostPer50Kg] = useState(0);
   const [marginPercent, setMarginPercent] = useState(0);
+  const [comparisonBase, setComparisonBase] = useState<ComparisonSnapshot | null>(
+    null
+  );
 
   const nutrientRows =
     result?.feasible ? buildNutrientRows(result, requirement) : [];
@@ -443,6 +476,11 @@ export default function ResultsTab({
         )
       : "";
 
+  const comparisonCurrent =
+    result?.feasible && comparisonBase
+      ? buildSnapshot(result, requirement.name)
+      : null;
+
   async function copySummary() {
     if (!summary) return;
 
@@ -452,6 +490,20 @@ export default function ResultsTab({
     } catch {
       window.alert("No se pudo copiar el resumen.");
     }
+  }
+
+  function saveComparisonBase() {
+    if (!result?.feasible) {
+      window.alert("Primero necesitas una fórmula válida para comparar.");
+      return;
+    }
+
+    setComparisonBase(buildSnapshot(result, requirement.name));
+    window.alert("Fórmula guardada como base de comparación.");
+  }
+
+  function clearComparisonBase() {
+    setComparisonBase(null);
   }
 
   return (
@@ -537,6 +589,24 @@ export default function ResultsTab({
               Copiar resumen
             </button>
 
+            <button
+              className="action secondary"
+              type="button"
+              onClick={saveComparisonBase}
+            >
+              ⚖️ Guardar como base para comparar
+            </button>
+
+            {comparisonBase && (
+              <button
+                className="action secondary"
+                type="button"
+                onClick={clearComparisonBase}
+              >
+                Limpiar comparación
+              </button>
+            )}
+
             <div className="table-wrap" style={{ marginTop: 14 }}>
               <table>
                 <thead>
@@ -563,6 +633,132 @@ export default function ResultsTab({
           </>
         )}
       </section>
+
+      {result?.feasible && comparisonBase && comparisonCurrent && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>⚖️ Comparador de fórmulas</h2>
+
+          <div className="note" style={{ marginBottom: 12 }}>
+            Base: <strong>{comparisonBase.name}</strong>
+            <br />
+            Actual: <strong>{comparisonCurrent.name}</strong>
+          </div>
+
+          <div className="stats">
+            <div className="stat">
+              <span>Diferencia costo kg</span>
+              <strong>
+                S/ {round(comparisonCurrent.costPerKg - comparisonBase.costPerKg, 3)}
+              </strong>
+            </div>
+
+            <div className="stat">
+              <span>Diferencia costo 50 kg</span>
+              <strong>
+                S/ {round(comparisonCurrent.costPer50Kg - comparisonBase.costPer50Kg, 2)}
+              </strong>
+            </div>
+
+            <div className="stat">
+              <span>Diferencia costo 100 kg</span>
+              <strong>
+                S/ {round(comparisonCurrent.costPer100Kg - comparisonBase.costPer100Kg, 2)}
+              </strong>
+            </div>
+          </div>
+
+          <h3>🌽 Diferencia de ingredientes</h3>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Insumo</th>
+                  <th>Base</th>
+                  <th>Actual</th>
+                  <th>Diferencia</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {Array.from(
+                  new Map(
+                    [...comparisonBase.ingredients, ...comparisonCurrent.ingredients].map(
+                      (item) => [item.id, item]
+                    )
+                  ).values()
+                ).map((item) => {
+                  const baseAmount = getIngredientAmount(
+                    comparisonBase.ingredients,
+                    item.id
+                  );
+                  const currentAmount = getIngredientAmount(
+                    comparisonCurrent.ingredients,
+                    item.id
+                  );
+                  const difference = currentAmount - baseAmount;
+
+                  return (
+                    <tr key={item.id}>
+                      <td>{item.name}</td>
+                      <td>{round(baseAmount, 3)} kg</td>
+                      <td>{round(currentAmount, 3)} kg</td>
+                      <td>
+                        <strong>{round(difference, 3)} kg</strong>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style={{ marginTop: 16 }}>🧪 Diferencia nutricional</h3>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nutriente</th>
+                  <th>Base</th>
+                  <th>Actual</th>
+                  <th>Diferencia</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {nutrientKeys.map((key) => {
+                  const baseValue = Number(comparisonBase.nutrients[key] || 0);
+                  const currentValue = Number(comparisonCurrent.nutrients[key] || 0);
+                  const difference = currentValue - baseValue;
+                  const decimals = nutrientDecimals(key);
+                  const suffix = nutrientSuffix(key);
+
+                  return (
+                    <tr key={key}>
+                      <td>{nutrientLabels[key]}</td>
+                      <td>
+                        {round(baseValue, decimals)}
+                        {suffix}
+                      </td>
+                      <td>
+                        {round(currentValue, decimals)}
+                        {suffix}
+                      </td>
+                      <td>
+                        <strong>
+                          {round(difference, decimals)}
+                          {suffix}
+                        </strong>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {result?.feasible && safetyStatuses.length > 0 && (
         <section className="card" style={{ marginTop: 18 }}>
