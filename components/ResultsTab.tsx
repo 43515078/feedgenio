@@ -9,10 +9,23 @@ import {
 import type { Requirement } from "@/lib/requirements";
 import type { FormulaResult } from "@/lib/solver";
 
+type SavedFormula = {
+  id: string;
+  name: string;
+  createdAt: string;
+  multiplier: number;
+  requirementName: string;
+  result: FormulaResult;
+};
+
 type Props = {
   result: FormulaResult | null;
   requirement: Requirement;
   onSaveFormula: () => void;
+  savedFormulas: SavedFormula[];
+  comparisonFormulaId: string;
+  comparisonFormula: SavedFormula | null;
+  onSelectComparisonFormula: (id: string) => void;
 };
 
 type NutrientRow = {
@@ -64,29 +77,17 @@ function getMaxValue(requirement: Requirement, key: NutrientKey) {
 
 function getStatus(row: NutrientRow) {
   const minDifference = row.obtained - row.min;
-
   const maxDifference =
     typeof row.max === "number" ? row.max - row.obtained : undefined;
 
-  if (minDifference < -0.001) {
-    return {
-      label: "❌ Bajo",
-      className: "bad"
-    };
-  }
+  if (minDifference < -0.001) return { label: "❌ Bajo", className: "bad" };
 
   if (typeof row.max === "number" && row.obtained - row.max > 0.001) {
-    return {
-      label: "🔴 Pasado",
-      className: "bad"
-    };
+    return { label: "🔴 Pasado", className: "bad" };
   }
 
   if (minDifference <= row.min * 0.03) {
-    return {
-      label: "✅ Cerca mín",
-      className: "good"
-    };
+    return { label: "✅ Cerca mín", className: "good" };
   }
 
   if (
@@ -95,16 +96,10 @@ function getStatus(row: NutrientRow) {
     maxDifference >= 0 &&
     maxDifference <= row.max * 0.03
   ) {
-    return {
-      label: "🟠 Cerca máx",
-      className: "bad"
-    };
+    return { label: "🟠 Cerca máx", className: "bad" };
   }
 
-  return {
-    label: "🟢 Correcto",
-    className: "good"
-  };
+  return { label: "🟢 Correcto", className: "good" };
 }
 
 function findAmount(result: FormulaResult, keywords: string[]) {
@@ -424,7 +419,11 @@ function buildSummary(
 export default function ResultsTab({
   result,
   requirement,
-  onSaveFormula
+  onSaveFormula,
+  savedFormulas,
+  comparisonFormulaId,
+  comparisonFormula,
+  onSelectComparisonFormula
 }: Props) {
   const [productionCostPerKg, setProductionCostPerKg] = useState(0);
   const [bagCostPer50Kg, setBagCostPer50Kg] = useState(0);
@@ -449,6 +448,18 @@ export default function ResultsTab({
   const smartDiagnostics = result?.smartDiagnostics || [];
   const shadowPriceStatuses = result?.shadowPriceStatuses || [];
   const safetyStatuses = result?.safetyStatuses || [];
+
+  const selectedComparisonBase =
+    comparisonFormula?.result?.feasible
+      ? buildSnapshot(comparisonFormula.result, comparisonFormula.name)
+      : null;
+
+  const activeComparisonBase = selectedComparisonBase || comparisonBase;
+
+  const comparisonCurrent =
+    result?.feasible && activeComparisonBase
+      ? buildSnapshot(result, requirement.name)
+      : null;
 
   const costWithProductionPerKg =
     result?.feasible ? result.costPerKg + productionCostPerKg : 0;
@@ -476,11 +487,6 @@ export default function ResultsTab({
         )
       : "";
 
-  const comparisonCurrent =
-    result?.feasible && comparisonBase
-      ? buildSnapshot(result, requirement.name)
-      : null;
-
   async function copySummary() {
     if (!summary) return;
 
@@ -498,12 +504,14 @@ export default function ResultsTab({
       return;
     }
 
+    onSelectComparisonFormula("");
     setComparisonBase(buildSnapshot(result, requirement.name));
     window.alert("Fórmula guardada como base de comparación.");
   }
 
   function clearComparisonBase() {
     setComparisonBase(null);
+    onSelectComparisonFormula("");
   }
 
   return (
@@ -594,10 +602,34 @@ export default function ResultsTab({
               type="button"
               onClick={saveComparisonBase}
             >
-              ⚖️ Guardar como base para comparar
+              ⚖️ Guardar actual como base
             </button>
 
-            {comparisonBase && (
+            {savedFormulas.length > 0 && (
+              <div className="note" style={{ marginTop: 12 }}>
+                <strong>Comparar contra fórmula guardada</strong>
+
+                <select
+                  className="price-input"
+                  style={{ width: "100%", marginTop: 10 }}
+                  value={comparisonFormulaId}
+                  onChange={(event) => {
+                    setComparisonBase(null);
+                    onSelectComparisonFormula(event.target.value);
+                  }}
+                >
+                  <option value="">Sin fórmula guardada seleccionada</option>
+
+                  {savedFormulas.map((formula) => (
+                    <option key={formula.id} value={formula.id}>
+                      {formula.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {activeComparisonBase && (
               <button
                 className="action secondary"
                 type="button"
@@ -634,12 +666,12 @@ export default function ResultsTab({
         )}
       </section>
 
-      {result?.feasible && comparisonBase && comparisonCurrent && (
+      {result?.feasible && activeComparisonBase && comparisonCurrent && (
         <section className="card" style={{ marginTop: 18 }}>
           <h2>⚖️ Comparador de fórmulas</h2>
 
           <div className="note" style={{ marginBottom: 12 }}>
-            Base: <strong>{comparisonBase.name}</strong>
+            Base: <strong>{activeComparisonBase.name}</strong>
             <br />
             Actual: <strong>{comparisonCurrent.name}</strong>
           </div>
@@ -648,21 +680,35 @@ export default function ResultsTab({
             <div className="stat">
               <span>Diferencia costo kg</span>
               <strong>
-                S/ {round(comparisonCurrent.costPerKg - comparisonBase.costPerKg, 3)}
+                S/{" "}
+                {round(
+                  comparisonCurrent.costPerKg - activeComparisonBase.costPerKg,
+                  3
+                )}
               </strong>
             </div>
 
             <div className="stat">
               <span>Diferencia costo 50 kg</span>
               <strong>
-                S/ {round(comparisonCurrent.costPer50Kg - comparisonBase.costPer50Kg, 2)}
+                S/{" "}
+                {round(
+                  comparisonCurrent.costPer50Kg -
+                    activeComparisonBase.costPer50Kg,
+                  2
+                )}
               </strong>
             </div>
 
             <div className="stat">
               <span>Diferencia costo 100 kg</span>
               <strong>
-                S/ {round(comparisonCurrent.costPer100Kg - comparisonBase.costPer100Kg, 2)}
+                S/{" "}
+                {round(
+                  comparisonCurrent.costPer100Kg -
+                    activeComparisonBase.costPer100Kg,
+                  2
+                )}
               </strong>
             </div>
           </div>
@@ -683,13 +729,14 @@ export default function ResultsTab({
               <tbody>
                 {Array.from(
                   new Map(
-                    [...comparisonBase.ingredients, ...comparisonCurrent.ingredients].map(
-                      (item) => [item.id, item]
-                    )
+                    [
+                      ...activeComparisonBase.ingredients,
+                      ...comparisonCurrent.ingredients
+                    ].map((item) => [item.id, item])
                   ).values()
                 ).map((item) => {
                   const baseAmount = getIngredientAmount(
-                    comparisonBase.ingredients,
+                    activeComparisonBase.ingredients,
                     item.id
                   );
                   const currentAmount = getIngredientAmount(
@@ -728,7 +775,7 @@ export default function ResultsTab({
 
               <tbody>
                 {nutrientKeys.map((key) => {
-                  const baseValue = Number(comparisonBase.nutrients[key] || 0);
+                  const baseValue = Number(activeComparisonBase.nutrients[key] || 0);
                   const currentValue = Number(comparisonCurrent.nutrients[key] || 0);
                   const difference = currentValue - baseValue;
                   const decimals = nutrientDecimals(key);
