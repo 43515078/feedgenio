@@ -9,6 +9,7 @@ import {
   createEmptyNutrients,
   defaultIngredients,
   nutrientKeys,
+  nutrientLabels,
   speciesKeys,
   type Ingredient,
   type IngredientLimit,
@@ -221,8 +222,42 @@ function formatKg(value: number) {
   return Number(value).toFixed(3);
 }
 
-function formatMoney(value: number, decimals = 2) {
-  return Number(value).toFixed(decimals);
+function formatMoney(value: number) {
+  return Number(value).toFixed(3);
+}
+
+function formatNutrient(value: number) {
+  return Number(value).toFixed(3);
+}
+
+function nutrientSuffix(key: NutrientKey) {
+  if (key === "energy") return " kcal/kg";
+  return "%";
+}
+
+function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
+  const maxKey = `${key}Max` as keyof Requirement;
+  const value = Number(requirement[maxKey] || 0);
+
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function getNutrientStatus(
+  obtained: number,
+  min: number,
+  max: number | undefined
+) {
+  if (obtained < min - 0.001) return "❌ Bajo";
+  if (typeof max === "number" && obtained > max + 0.001) return "🔴 Pasado";
+  if (obtained - min <= Math.max(min * 0.03, 0.001)) return "✅ Cerca mín";
+  if (
+    typeof max === "number" &&
+    max - obtained <= Math.max(max * 0.03, 0.001)
+  ) {
+    return "🟠 Cerca máx";
+  }
+
+  return "🟢 Correcto";
 }
 
 function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
@@ -431,6 +466,9 @@ export default function HomePage() {
         setSavedFormulas(
           parsed.map((formula) => ({
             ...formula,
+            requirementSnapshot: formula.requirementSnapshot
+              ? normalizeRequirement(formula.requirementSnapshot)
+              : undefined,
             costing: normalizeCosting(formula.costing)
           }))
         );
@@ -852,26 +890,63 @@ export default function HomePage() {
     }));
   }
 
+  function getSavedFormulaRequirement(formula: SavedFormula) {
+    if (formula.requirementSnapshot) {
+      return normalizeRequirement(formula.requirementSnapshot);
+    }
+
+    const foundRequirement = requirementProfiles.find(
+      (profile) => profile.name === formula.requirementName
+    );
+
+    if (foundRequirement) {
+      return normalizeRequirement(foundRequirement);
+    }
+
+    return normalizeRequirement({
+      ...defaultRequirement,
+      name: formula.requirementName
+    });
+  }
+
   function buildSavedFormulaText(formula: SavedFormula) {
     const multiplier = getMultiplierNumber(formula);
     const costingData = calculateSavedCosting(formula, multiplier);
+    const savedRequirement = getSavedFormulaRequirement(formula);
 
     const lines = [
       `FeedGenio - ${formula.name}`,
       `Perfil: ${formula.requirementName}`,
       `Total mezcla: ${formatKg(costingData.totalKg)} kg`,
-      `Costo fórmula: S/ ${formatMoney(costingData.totalFormulaCost, 2)}`,
-      `Costo real aprox: S/ ${formatMoney(costingData.totalRealCost, 2)}`,
-      `Costo por kg: S/ ${formula.result.costPerKg.toFixed(3)}`,
-      `Costo real por kg: S/ ${formatMoney(costingData.costWithProductionPerKg, 3)}`,
-      `Costo real saco 50 kg: S/ ${formatMoney(costingData.realCostPer50Kg, 2)}`,
-      `Venta sugerida saco 50 kg: S/ ${formatMoney(costingData.salePer50Kg, 2)}`,
+      `Costo fórmula: S/ ${formatMoney(costingData.totalFormulaCost)}`,
+      `Costo real aprox: S/ ${formatMoney(costingData.totalRealCost)}`,
+      `Costo por kg: S/ ${formatMoney(formula.result.costPerKg)}`,
+      `Costo real por kg: S/ ${formatMoney(costingData.costWithProductionPerKg)}`,
+      `Costo real saco 50 kg: S/ ${formatMoney(costingData.realCostPer50Kg)}`,
+      `Venta sugerida saco 50 kg: S/ ${formatMoney(costingData.salePer50Kg)}`,
       "",
       "Ingredientes:"
     ];
 
     formula.result.ingredients.forEach((item) => {
       lines.push(`${item.name}: ${formatKg(item.amountKg100 * multiplier)} kg`);
+    });
+
+    lines.push("");
+    lines.push("Nutrientes obtenidos VS requerimiento:");
+
+    nutrientKeys.forEach((key) => {
+      const obtained = Number(formula.result.nutrients[key] || 0);
+      const min = Number(savedRequirement[key] || 0);
+      const max = getRequirementMaxValue(savedRequirement, key);
+      const maxText =
+        typeof max === "number" ? ` | máx ${formatNutrient(max)}${nutrientSuffix(key)}` : "";
+
+      lines.push(
+        `${nutrientLabels[key]}: obtenido ${formatNutrient(obtained)}${nutrientSuffix(
+          key
+        )} | mín ${formatNutrient(min)}${nutrientSuffix(key)}${maxText}`
+      );
     });
 
     return lines.join("\n");
@@ -1012,6 +1087,7 @@ export default function HomePage() {
               filteredSavedFormulas.map((formula) => {
                 const multiplier = getMultiplierNumber(formula);
                 const costingData = calculateSavedCosting(formula, multiplier);
+                const savedRequirement = getSavedFormulaRequirement(formula);
 
                 return (
                   <details
@@ -1074,24 +1150,26 @@ export default function HomePage() {
                       Total mezcla: <strong>{formatKg(costingData.totalKg)} kg</strong>
                       <br />
                       Costo fórmula:{" "}
-                      <strong>S/ {formatMoney(costingData.totalFormulaCost, 2)}</strong>
+                      <strong>S/ {formatMoney(costingData.totalFormulaCost)}</strong>
                       <br />
                       Costo real aprox:{" "}
-                      <strong>S/ {formatMoney(costingData.totalRealCost, 2)}</strong>
+                      <strong>S/ {formatMoney(costingData.totalRealCost)}</strong>
                       <br />
                       Costo real kg:{" "}
                       <strong>
-                        S/ {formatMoney(costingData.costWithProductionPerKg, 3)}
+                        S/ {formatMoney(costingData.costWithProductionPerKg)}
                       </strong>
                       <br />
                       Costo real saco 50 kg:{" "}
-                      <strong>S/ {formatMoney(costingData.realCostPer50Kg, 2)}</strong>
+                      <strong>S/ {formatMoney(costingData.realCostPer50Kg)}</strong>
                       <br />
                       Venta sugerida saco:{" "}
-                      <strong>S/ {formatMoney(costingData.salePer50Kg, 2)}</strong>
+                      <strong>S/ {formatMoney(costingData.salePer50Kg)}</strong>
                     </div>
 
-                    <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
+                    <h3 style={{ marginTop: 16 }}>🌽 Ingredientes</h3>
+
+                    <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                       {formula.result.ingredients.map((item) => (
                         <div
                           key={item.id}
@@ -1125,6 +1203,58 @@ export default function HomePage() {
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    <h3 style={{ marginTop: 16 }}>
+                      🧪 Nutrientes obtenidos VS requerimiento
+                    </h3>
+
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Nutriente</th>
+                            <th>Mín</th>
+                            <th>Obtenido</th>
+                            <th>Máx</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {nutrientKeys.map((key) => {
+                            const obtained = Number(formula.result.nutrients[key] || 0);
+                            const min = Number(savedRequirement[key] || 0);
+                            const max = getRequirementMaxValue(savedRequirement, key);
+                            const suffix = nutrientSuffix(key);
+                            const status = getNutrientStatus(obtained, min, max);
+
+                            return (
+                              <tr key={key}>
+                                <td>{nutrientLabels[key]}</td>
+                                <td>
+                                  {formatNutrient(min)}
+                                  {suffix}
+                                </td>
+                                <td>
+                                  <strong>
+                                    {formatNutrient(obtained)}
+                                    {suffix}
+                                  </strong>
+                                </td>
+                                <td>
+                                  {typeof max === "number"
+                                    ? `${formatNutrient(max)}${suffix}`
+                                    : "Sin máx"}
+                                </td>
+                                <td>
+                                  <strong>{status}</strong>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
 
                     <button
