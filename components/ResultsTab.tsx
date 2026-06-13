@@ -52,7 +52,7 @@ type ComparisonSnapshot = {
   nutrients: Record<NutrientKey, number>;
 };
 
-function round(value: number, decimals = 2) {
+function round(value: number, decimals = 3) {
   return Number(value).toFixed(decimals);
 }
 
@@ -61,9 +61,8 @@ function nutrientSuffix(key: NutrientKey) {
   return "%";
 }
 
-function nutrientDecimals(key: NutrientKey) {
-  if (key === "energy") return 0;
-  return 2;
+function nutrientDecimals() {
+  return 3;
 }
 
 function getMaxValue(requirement: Requirement, key: NutrientKey) {
@@ -143,7 +142,7 @@ function buildNutrientRows(
     obtained: Number(result.nutrients[key] || 0),
     min: Number(requirement[key] || 0),
     max: getMaxValue(requirement, key),
-    decimals: nutrientDecimals(key),
+    decimals: nutrientDecimals(),
     suffix: nutrientSuffix(key)
   }));
 }
@@ -324,98 +323,6 @@ function getIngredientAmount(
   return ingredients.find((item) => item.id === id)?.amountKg100 || 0;
 }
 
-function buildSummary(
-  result: FormulaResult,
-  requirement: Requirement,
-  productionCostPerKg: number,
-  bagCostPer50Kg: number,
-  marginPercent: number
-) {
-  if (!result.feasible) return "";
-
-  const nutrientRows = buildNutrientRows(result, requirement);
-
-  const costWithProductionPerKg = result.costPerKg + productionCostPerKg;
-  const realCostPer50Kg = costWithProductionPerKg * 50 + bagCostPer50Kg;
-  const realCostPer100Kg = costWithProductionPerKg * 100 + bagCostPer50Kg * 2;
-  const realCostPerTon = costWithProductionPerKg * 1000 + bagCostPer50Kg * 20;
-  const salePer50Kg = realCostPer50Kg * (1 + marginPercent / 100);
-  const salePerKg = salePer50Kg / 50;
-
-  const lines = [
-    `FeedGenio - ${requirement.name}`,
-    "",
-    "Fórmula por 100 kg:"
-  ];
-
-  result.ingredients.forEach((item) => {
-    lines.push(`${item.name}: ${round(item.amountKg100, 3)} kg`);
-  });
-
-  lines.push("");
-  lines.push("Costeo:");
-  lines.push(`Costo fórmula por kg: S/ ${round(result.costPerKg, 3)}`);
-  lines.push(`Costo productivo por kg: S/ ${round(productionCostPerKg, 3)}`);
-  lines.push(`Bolsa por saco 50 kg: S/ ${round(bagCostPer50Kg, 2)}`);
-  lines.push(`Costo real saco 50 kg: S/ ${round(realCostPer50Kg, 2)}`);
-  lines.push(`Costo real 100 kg: S/ ${round(realCostPer100Kg, 2)}`);
-  lines.push(`Costo real tonelada: S/ ${round(realCostPerTon, 2)}`);
-  lines.push(`Margen: ${round(marginPercent, 1)}%`);
-  lines.push(`Precio venta sugerido saco 50 kg: S/ ${round(salePer50Kg, 2)}`);
-  lines.push(`Precio venta sugerido por kg: S/ ${round(salePerKg, 3)}`);
-
-  if (result.safetyStatuses && result.safetyStatuses.length > 0) {
-    lines.push("");
-    lines.push("Control de seguridad nutricional:");
-
-    result.safetyStatuses.forEach((item) => {
-      lines.push(`- ${item.title}: ${item.message} Acción: ${item.action}`);
-    });
-  }
-
-  if (result.shadowPriceStatuses && result.shadowPriceStatuses.length > 0) {
-    lines.push("");
-    lines.push("Precio sombra práctico:");
-
-    result.shadowPriceStatuses.forEach((item) => {
-      lines.push(
-        `- ${item.name}: ahorro estimado S/ ${round(
-          item.estimatedSavingPer100Kg,
-          3
-        )} por 100 kg. ${item.message}`
-      );
-    });
-  }
-
-  if (result.smartDiagnostics && result.smartDiagnostics.length > 0) {
-    lines.push("");
-    lines.push("Diagnóstico inteligente:");
-
-    result.smartDiagnostics.forEach((item) => {
-      lines.push(`- ${item.title}: ${item.message} Acción: ${item.action}`);
-    });
-  }
-
-  lines.push("");
-  lines.push("Nutrientes obtenidos:");
-
-  nutrientRows.forEach((row) => {
-    const maxText =
-      typeof row.max === "number"
-        ? ` / máx ${round(row.max, row.decimals)}${row.suffix}`
-        : "";
-
-    lines.push(
-      `${row.label}: ${round(row.obtained, row.decimals)}${row.suffix} | mín ${round(
-        row.min,
-        row.decimals
-      )}${row.suffix}${maxText}`
-    );
-  });
-
-  return lines.join("\n");
-}
-
 export default function ResultsTab({
   result,
   requirement,
@@ -475,28 +382,6 @@ export default function ResultsTab({
 
   const salePer50Kg = realCostPer50Kg * (1 + marginPercent / 100);
   const salePerKg = salePer50Kg / 50;
-
-  const summary =
-    result?.feasible
-      ? buildSummary(
-          result,
-          requirement,
-          productionCostPerKg,
-          bagCostPer50Kg,
-          marginPercent
-        )
-      : "";
-
-  async function copySummary() {
-    if (!summary) return;
-
-    try {
-      await navigator.clipboard.writeText(summary);
-      window.alert("Resumen copiado.");
-    } catch {
-      window.alert("No se pudo copiar el resumen.");
-    }
-  }
 
   function saveComparisonBase() {
     if (!result?.feasible) {
@@ -571,30 +456,22 @@ export default function ResultsTab({
             <div className="stats">
               <div className="stat">
                 <span>Costo por kg</span>
-                <strong>S/ {round(result.costPerKg, 3)}</strong>
+                <strong>S/ {round(result.costPerKg)}</strong>
               </div>
 
               <div className="stat">
                 <span>Costo saco 50 kg</span>
-                <strong>S/ {round(result.costPer50Kg, 2)}</strong>
+                <strong>S/ {round(result.costPer50Kg)}</strong>
               </div>
 
               <div className="stat">
                 <span>Costo 100 kg</span>
-                <strong>S/ {round(result.costPer100Kg, 2)}</strong>
+                <strong>S/ {round(result.costPer100Kg)}</strong>
               </div>
             </div>
 
             <button className="action" type="button" onClick={onSaveFormula}>
               💾 Guardar fórmula
-            </button>
-
-            <button
-              className="action secondary"
-              type="button"
-              onClick={copySummary}
-            >
-              Copiar resumen
             </button>
 
             <button
@@ -654,9 +531,9 @@ export default function ResultsTab({
                   {result.ingredients.map((item) => (
                     <tr key={item.id}>
                       <td>{item.name}</td>
-                      <td>{round(item.amountKg100, 3)}</td>
-                      <td>{round(item.amountKg50, 3)}</td>
-                      <td>S/ {round(item.cost, 2)}</td>
+                      <td>{round(item.amountKg100)}</td>
+                      <td>{round(item.amountKg50)}</td>
+                      <td>S/ {round(item.cost)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -682,8 +559,7 @@ export default function ResultsTab({
               <strong>
                 S/{" "}
                 {round(
-                  comparisonCurrent.costPerKg - activeComparisonBase.costPerKg,
-                  3
+                  comparisonCurrent.costPerKg - activeComparisonBase.costPerKg
                 )}
               </strong>
             </div>
@@ -694,8 +570,7 @@ export default function ResultsTab({
                 S/{" "}
                 {round(
                   comparisonCurrent.costPer50Kg -
-                    activeComparisonBase.costPer50Kg,
-                  2
+                    activeComparisonBase.costPer50Kg
                 )}
               </strong>
             </div>
@@ -706,8 +581,7 @@ export default function ResultsTab({
                 S/{" "}
                 {round(
                   comparisonCurrent.costPer100Kg -
-                    activeComparisonBase.costPer100Kg,
-                  2
+                    activeComparisonBase.costPer100Kg
                 )}
               </strong>
             </div>
@@ -748,10 +622,10 @@ export default function ResultsTab({
                   return (
                     <tr key={item.id}>
                       <td>{item.name}</td>
-                      <td>{round(baseAmount, 3)} kg</td>
-                      <td>{round(currentAmount, 3)} kg</td>
+                      <td>{round(baseAmount)} kg</td>
+                      <td>{round(currentAmount)} kg</td>
                       <td>
-                        <strong>{round(difference, 3)} kg</strong>
+                        <strong>{round(difference)} kg</strong>
                       </td>
                     </tr>
                   );
@@ -778,23 +652,22 @@ export default function ResultsTab({
                   const baseValue = Number(activeComparisonBase.nutrients[key] || 0);
                   const currentValue = Number(comparisonCurrent.nutrients[key] || 0);
                   const difference = currentValue - baseValue;
-                  const decimals = nutrientDecimals(key);
                   const suffix = nutrientSuffix(key);
 
                   return (
                     <tr key={key}>
                       <td>{nutrientLabels[key]}</td>
                       <td>
-                        {round(baseValue, decimals)}
+                        {round(baseValue)}
                         {suffix}
                       </td>
                       <td>
-                        {round(currentValue, decimals)}
+                        {round(currentValue)}
                         {suffix}
                       </td>
                       <td>
                         <strong>
-                          {round(difference, decimals)}
+                          {round(difference)}
                           {suffix}
                         </strong>
                       </td>
@@ -850,12 +723,12 @@ export default function ResultsTab({
               <strong>{item.name}</strong>
               <p style={{ marginBottom: 8 }}>{item.message}</p>
               <p style={{ marginBottom: 0 }}>
-                Límite actual: <strong>{round(item.currentLimit, 3)}</strong>{" "}
-                → probado: <strong>{round(item.relaxedLimit, 3)}</strong>
+                Límite actual: <strong>{round(item.currentLimit)}</strong>{" "}
+                → probado: <strong>{round(item.relaxedLimit)}</strong>
                 <br />
                 Ahorro estimado:{" "}
                 <strong>
-                  S/ {round(item.estimatedSavingPer100Kg, 3)} por 100 kg
+                  S/ {round(item.estimatedSavingPer100Kg)} por 100 kg
                 </strong>
               </p>
             </div>
@@ -910,7 +783,7 @@ export default function ResultsTab({
                     <input
                       className="price-input"
                       type="number"
-                      step="0.01"
+                      step="0.001"
                       value={bagCostPer50Kg}
                       onChange={(event) =>
                         setBagCostPer50Kg(Number(event.target.value || 0))
@@ -925,7 +798,7 @@ export default function ResultsTab({
                     <input
                       className="price-input"
                       type="number"
-                      step="0.1"
+                      step="0.001"
                       value={marginPercent}
                       onChange={(event) =>
                         setMarginPercent(Number(event.target.value || 0))
@@ -940,27 +813,27 @@ export default function ResultsTab({
           <div className="stats" style={{ marginTop: 14 }}>
             <div className="stat">
               <span>Costo real kg</span>
-              <strong>S/ {round(costWithProductionPerKg, 3)}</strong>
+              <strong>S/ {round(costWithProductionPerKg)}</strong>
             </div>
 
             <div className="stat">
               <span>Costo real saco 50 kg</span>
-              <strong>S/ {round(realCostPer50Kg, 2)}</strong>
+              <strong>S/ {round(realCostPer50Kg)}</strong>
             </div>
 
             <div className="stat">
               <span>Costo real tonelada</span>
-              <strong>S/ {round(realCostPerTon, 2)}</strong>
+              <strong>S/ {round(realCostPerTon)}</strong>
             </div>
 
             <div className="stat">
               <span>Venta sugerida saco</span>
-              <strong>S/ {round(salePer50Kg, 2)}</strong>
+              <strong>S/ {round(salePer50Kg)}</strong>
             </div>
 
             <div className="stat">
               <span>Venta sugerida kg</span>
-              <strong>S/ {round(salePerKg, 3)}</strong>
+              <strong>S/ {round(salePerKg)}</strong>
             </div>
           </div>
 
@@ -1059,18 +932,18 @@ export default function ResultsTab({
                     <tr key={row.key}>
                       <td>{row.label}</td>
                       <td>
-                        {round(row.min, row.decimals)}
+                        {round(row.min)}
                         {row.suffix}
                       </td>
                       <td>
                         <strong>
-                          {round(row.obtained, row.decimals)}
+                          {round(row.obtained)}
                           {row.suffix}
                         </strong>
                       </td>
                       <td>
                         {typeof row.max === "number"
-                          ? `${round(row.max, row.decimals)}${row.suffix}`
+                          ? `${round(row.max)}${row.suffix}`
                           : "Sin máx"}
                       </td>
                       <td className={status.className}>{status.label}</td>
@@ -1080,27 +953,6 @@ export default function ResultsTab({
               </tbody>
             </table>
           </div>
-        </section>
-      )}
-
-      {result?.feasible && (
-        <section className="card" style={{ marginTop: 18 }}>
-          <h2>📋 Resumen copiable</h2>
-
-          <textarea
-            className="price-input"
-            style={{
-              width: "100%",
-              minHeight: 320,
-              lineHeight: 1.5
-            }}
-            value={summary}
-            readOnly
-          />
-
-          <button className="action" type="button" onClick={copySummary}>
-            Copiar resumen
-          </button>
         </section>
       )}
     </>
