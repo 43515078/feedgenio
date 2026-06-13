@@ -119,12 +119,36 @@ function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
 }
 
 function decimalsForNutrient(key: NutrientKey) {
-  return key === "energy" ? 0 : 2;
+  return key === "energy" ? 0 : 3;
 }
 
 function shadowDeltaForNutrient(key: NutrientKey) {
   if (key === "energy") return 10;
   return 0.01;
+}
+
+function practicalMinimumForIngredient(ingredientName: string) {
+  const name = ingredientName.toLowerCase();
+
+  if (
+    name.includes("lisina") ||
+    name.includes("metionina") ||
+    name.includes("treonina") ||
+    name.includes("valina") ||
+    name.includes("isoleucina") ||
+    name.includes("triptófano") ||
+    name.includes("triptofano") ||
+    name.includes("histidina")
+  ) {
+    return 0.05;
+  }
+
+  if (name.includes("sal")) return 0.05;
+  if (name.includes("aceite") || name.includes("grasa")) return 0.1;
+  if (name.includes("fosfato") || name.includes("dcp")) return 0.1;
+  if (name.includes("carbonato")) return 0.1;
+
+  return 0;
 }
 
 function calculateFormulaNutrients(
@@ -382,7 +406,7 @@ function buildFailureMessage(
   if (totalMin > 100) {
     messages.push(
       `La suma de mínimos es ${totalMin.toFixed(
-        2
+        3
       )}%, supera 100%. Baja algunos mínimos.`
     );
   }
@@ -390,7 +414,7 @@ function buildFailureMessage(
   if (totalMax < 100) {
     messages.push(
       `La suma de máximos es ${totalMax.toFixed(
-        2
+        3
       )}%, no llega a 100%. Sube algunos máximos o activa más ingredientes.`
     );
   }
@@ -399,7 +423,7 @@ function buildFailureMessage(
     messages.push("Hay requerimientos con máximo menor que el mínimo:");
 
     for (const item of invertedRanges) {
-      const decimals = item.label === "Energía" ? 0 : 2;
+      const decimals = item.label === "Energía" ? 0 : 3;
 
       messages.push(
         `- ${item.label}: mínimo ${item.required.toFixed(
@@ -413,7 +437,7 @@ function buildFailureMessage(
     messages.push("Nutrientes que no llegan al mínimo con los máximos actuales:");
 
     for (const item of impossibleMinimums) {
-      const decimals = item.label === "Energía" ? 0 : 2;
+      const decimals = item.label === "Energía" ? 0 : 3;
 
       messages.push(
         `- ${item.label}: mínimo requerido ${item.required.toFixed(
@@ -427,7 +451,7 @@ function buildFailureMessage(
     messages.push("Nutrientes que ya superan el máximo por los mínimos actuales:");
 
     for (const item of impossibleMaximums) {
-      const decimals = item.label === "Energía" ? 0 : 2;
+      const decimals = item.label === "Energía" ? 0 : 3;
 
       messages.push(
         `- ${item.label}: máximo permitido ${Number(item.requiredMax).toFixed(
@@ -493,7 +517,7 @@ function buildIngredientLimitStatuses(
         max,
         status: "max",
         message: `${ingredient.name} quedó pegado al máximo (${max.toFixed(
-          2
+          3
         )}%). Si la fórmula necesita más de este insumo, ese límite puede estar bloqueando.`
       });
 
@@ -509,7 +533,7 @@ function buildIngredientLimitStatuses(
         max,
         status: "min",
         message: `${ingredient.name} quedó pegado al mínimo (${min.toFixed(
-          2
+          3
         )}%). Puede estar entrando obligado por el límite mínimo.`
       });
 
@@ -730,6 +754,23 @@ function buildSmartDiagnostics(
     ["calcium", "availablePhosphorus", "sodium", "chlorine"],
     ["nearMin", "below", "nearMax", "above"]
   );
+
+  const microIngredients = formulaIngredients.filter((ingredient) => {
+    const practicalMinimum = practicalMinimumForIngredient(ingredient.name);
+    return practicalMinimum > 0 && ingredient.amountKg100 < practicalMinimum;
+  });
+
+  if (microIngredients.length > 0) {
+    diagnostics.push({
+      level: "warning",
+      title: "Ingredientes en microinclusión",
+      message: `Estos insumos entraron por debajo del mínimo práctico: ${microIngredients
+        .map((item) => `${item.name} (${item.amountKg100.toFixed(3)} kg)`)
+        .join(", ")}.`,
+      action:
+        "En fórmulas pequeñas puede ser difícil dosificar cantidades tan bajas. Considera desactivar el ingrediente, subir su mínimo o usar una premezcla."
+    });
+  }
 
   if (maxIngredients.length > 0) {
     diagnostics.push({
@@ -1038,7 +1079,7 @@ function buildShadowPrices(
             currentLimit: Number(ingredient.max || 0),
             relaxedLimit: Number(ingredient.max || 0) + delta,
             estimatedSavingPer100Kg: saving,
-            message: `Si subes el máximo de ${ingredient.name} en 0.1%, el costo podría bajar aprox. S/ ${saving.toFixed(
+            message: `Si subes el máximo de ${ingredient.name} en 0.100%, el costo podría bajar aprox. S/ ${saving.toFixed(
               3
             )} por cada 100 kg.`
           });
@@ -1077,7 +1118,7 @@ function buildShadowPrices(
               currentLimit: currentMin,
               relaxedLimit: Math.max(0, currentMin - delta),
               estimatedSavingPer100Kg: saving,
-              message: `Si bajas el mínimo obligatorio de ${ingredient.name} en 0.1%, el costo podría bajar aprox. S/ ${saving.toFixed(
+              message: `Si bajas el mínimo obligatorio de ${ingredient.name} en 0.100%, el costo podría bajar aprox. S/ ${saving.toFixed(
                 3
               )} por cada 100 kg.`
             });
@@ -1111,6 +1152,36 @@ function buildSafetyStatuses(
   const salt = findFormulaIngredientAmount(formulaIngredients, ["sal"]);
   const carbonate = findFormulaIngredientAmount(formulaIngredients, ["carbonato"]);
   const soybean = findFormulaIngredientAmount(formulaIngredients, ["soya", "soja"]);
+
+  const microIngredients = formulaIngredients
+    .map((ingredient) => ({
+      ingredient,
+      practicalMinimum: practicalMinimumForIngredient(ingredient.name)
+    }))
+    .filter(
+      (item) =>
+        item.practicalMinimum > 0 &&
+        item.ingredient.amountKg100 > 0 &&
+        item.ingredient.amountKg100 < item.practicalMinimum
+    );
+
+  if (microIngredients.length > 0) {
+    safety.push({
+      id: "micro_inclusion_ingredients",
+      level: "warning",
+      title: "Insumo con inclusión muy baja",
+      message: `Estos insumos entraron en cantidad muy pequeña: ${microIngredients
+        .map(
+          (item) =>
+            `${item.ingredient.name} ${item.ingredient.amountKg100.toFixed(
+              3
+            )} kg/100 kg`
+        )
+        .join(", ")}.`,
+      action:
+        "En planta pequeña puede ser difícil dosificar eso con precisión. Considera desactivar el insumo, subir su mínimo práctico o preparar una premezcla antes de producir."
+    });
+  }
 
   if (belowNutrients.length > 0) {
     safety.push({
