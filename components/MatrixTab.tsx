@@ -1,7 +1,5 @@
 import {
   nutrientLabels,
-  speciesKeys,
-  speciesLabels,
   type Ingredient,
   type NutrientKey,
   type SpeciesKey
@@ -14,6 +12,8 @@ type EditableIngredient = Ingredient & {
 type Props = {
   ingredients: EditableIngredient[];
   nutrientKeys: NutrientKey[];
+  speciesKeys: SpeciesKey[];
+  speciesLabels: Record<SpeciesKey, string>;
   onAddIngredient: () => void;
   onDeleteIngredient: (id: string) => void;
   onMoveIngredient: (id: string, direction: "up" | "down") => void;
@@ -30,27 +30,79 @@ type Props = {
     nutrient: NutrientKey,
     value: number
   ) => void;
+  onAddClassifier: () => void;
+  onRenameClassifier: (species: SpeciesKey, label: string) => void;
+  onDeleteClassifier: (species: SpeciesKey) => void;
 };
 
 export default function MatrixTab({
   ingredients,
   nutrientKeys,
+  speciesKeys,
+  speciesLabels,
   onAddIngredient,
   onDeleteIngredient,
   onMoveIngredient,
   onUpdateName,
   onUpdateSpecies,
   onUpdateLimit,
-  onUpdateNutrient
+  onUpdateNutrient,
+  onAddClassifier,
+  onRenameClassifier,
+  onDeleteClassifier
 }: Props) {
   return (
     <section className="card">
       <h2>🧪 Matriz nutricional editable</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
-        Aquí defines el orden maestro, especies, límites por especie y matriz
-        nutricional.
+        Aquí defines ingredientes, clasificadores, límites por clasificador y
+        matriz nutricional.
       </div>
+
+      <section className="card" style={{ marginBottom: 18 }}>
+        <h2>🏷️ Clasificadores</h2>
+
+        <div className="note" style={{ marginBottom: 12 }}>
+          Puedes crear clasificadores como Ponedora dig, Pollo dig, Cerdo dig,
+          Pollo SE o los que necesites después.
+        </div>
+
+        {speciesKeys.map((species) => (
+          <div
+            key={species}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: 8,
+              alignItems: "center",
+              marginBottom: 8
+            }}
+          >
+            <input
+              className="price-input"
+              type="text"
+              value={speciesLabels[species] || species}
+              onChange={(event) =>
+                onRenameClassifier(species, event.target.value)
+              }
+            />
+
+            <button
+              type="button"
+              className="tab-button"
+              onClick={() => onDeleteClassifier(species)}
+              style={{ color: "#a92828" }}
+            >
+              Borrar
+            </button>
+          </div>
+        ))}
+
+        <button className="action secondary" type="button" onClick={onAddClassifier}>
+          Agregar clasificador
+        </button>
+      </section>
 
       <button className="action" type="button" onClick={onAddIngredient}>
         Agregar ingrediente
@@ -64,7 +116,7 @@ export default function MatrixTab({
               <th className="matrix-sticky-name">Insumo</th>
 
               {speciesKeys.map((species) => (
-                <th key={species}>{speciesLabels[species]}</th>
+                <th key={species}>{speciesLabels[species] || species}</th>
               ))}
 
               {nutrientKeys.map((key) => (
@@ -126,7 +178,7 @@ export default function MatrixTab({
                       <input
                         className="price-input"
                         type="number"
-                        step="0.1"
+                        step="0.001"
                         value={ingredient.limits?.[species]?.min ?? 0}
                         onChange={(event) =>
                           onUpdateLimit(
@@ -136,13 +188,13 @@ export default function MatrixTab({
                             Number(event.target.value || 0)
                           )
                         }
-                        style={{ width: 70 }}
+                        style={{ width: 76 }}
                       />
 
                       <input
                         className="price-input"
                         type="number"
-                        step="0.1"
+                        step="0.001"
                         value={ingredient.limits?.[species]?.max ?? 100}
                         onChange={(event) =>
                           onUpdateLimit(
@@ -152,7 +204,7 @@ export default function MatrixTab({
                             Number(event.target.value || 0)
                           )
                         }
-                        style={{ width: 70, marginLeft: 4 }}
+                        style={{ width: 76, marginLeft: 4 }}
                       />
                     </div>
                   </td>
@@ -163,7 +215,7 @@ export default function MatrixTab({
                     <input
                       className="price-input"
                       type="number"
-                      step={key === "energy" ? "1" : "0.01"}
+                      step={key === "energy" ? "1" : "0.001"}
                       value={ingredient.nutrients[key]}
                       onChange={(event) =>
                         onUpdateNutrient(
