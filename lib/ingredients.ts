@@ -21,7 +21,12 @@ export type NutrientKey =
   | "chlorine"
   | "linoleicAcid";
 
-export type SpeciesKey = "layer" | "broiler" | "pig" | "guineaPig";
+export type SpeciesKey = string;
+
+export type SpeciesClassifier = {
+  id: SpeciesKey;
+  label: string;
+};
 
 export type IngredientLimit = {
   min: number;
@@ -33,7 +38,6 @@ export type Ingredient = {
   name: string;
   price: number;
 
-  // Compatibilidad antigua. El solver todavía recibirá min/max ya preparados.
   min: number;
   max: number;
 
@@ -42,19 +46,29 @@ export type Ingredient = {
   nutrients: Record<NutrientKey, number>;
 };
 
-export const speciesKeys: SpeciesKey[] = [
-  "layer",
-  "broiler",
-  "pig",
-  "guineaPig"
+export const defaultSpeciesClassifiers: SpeciesClassifier[] = [
+  { id: "layer", label: "Ponedora" },
+  { id: "broiler", label: "Pollo" },
+  { id: "pig", label: "Cerdo" },
+  { id: "guineaPig", label: "Cuy" },
+
+  { id: "layerDig", label: "Ponedora dig" },
+  { id: "broilerDig", label: "Pollo dig" },
+  { id: "pigDig", label: "Cerdo dig" },
+
+  { id: "broilerSE", label: "Pollo SE" },
+  { id: "pigSE", label: "Cerdo SE" }
 ];
 
-export const speciesLabels: Record<SpeciesKey, string> = {
-  layer: "Ponedora",
-  broiler: "Pollo",
-  pig: "Cerdo",
-  guineaPig: "Cuy"
-};
+export const speciesKeys: SpeciesKey[] = defaultSpeciesClassifiers.map(
+  (item) => item.id
+);
+
+export const speciesLabels: Record<SpeciesKey, string> =
+  defaultSpeciesClassifiers.reduce((acc, item) => {
+    acc[item.id] = item.label;
+    return acc;
+  }, {} as Record<SpeciesKey, string>);
 
 export const nutrientKeys: NutrientKey[] = [
   "energy",
@@ -129,24 +143,26 @@ export const nutrientFullLabels: Record<NutrientKey, string> = {
 };
 
 export function createAllSpecies(value = true): Record<SpeciesKey, boolean> {
-  return {
-    layer: value,
-    broiler: value,
-    pig: value,
-    guineaPig: value
-  };
+  const species = {} as Record<SpeciesKey, boolean>;
+
+  for (const key of speciesKeys) {
+    species[key] = value;
+  }
+
+  return species;
 }
 
 export function createAllLimits(
   min = 0,
   max = 100
 ): Record<SpeciesKey, IngredientLimit> {
-  return {
-    layer: { min, max },
-    broiler: { min, max },
-    pig: { min, max },
-    guineaPig: { min, max }
-  };
+  const limits = {} as Record<SpeciesKey, IngredientLimit>;
+
+  for (const key of speciesKeys) {
+    limits[key] = { min, max };
+  }
+
+  return limits;
 }
 
 export function createEmptyNutrients(): Record<NutrientKey, number> {
@@ -183,10 +199,16 @@ export const defaultIngredients: Ingredient[] = [
     max: 75,
     species: createAllSpecies(true),
     limits: {
+      ...createAllLimits(0, 100),
       layer: { min: 40, max: 75 },
       broiler: { min: 40, max: 75 },
       pig: { min: 40, max: 80 },
-      guineaPig: { min: 0, max: 40 }
+      guineaPig: { min: 0, max: 40 },
+      layerDig: { min: 40, max: 75 },
+      broilerDig: { min: 40, max: 75 },
+      pigDig: { min: 40, max: 80 },
+      broilerSE: { min: 40, max: 75 },
+      pigSE: { min: 40, max: 80 }
     },
     nutrients: {
       energy: 3350,
@@ -220,10 +242,16 @@ export const defaultIngredients: Ingredient[] = [
     max: 35,
     species: createAllSpecies(true),
     limits: {
+      ...createAllLimits(0, 100),
       layer: { min: 0, max: 35 },
       broiler: { min: 0, max: 40 },
       pig: { min: 0, max: 35 },
-      guineaPig: { min: 0, max: 30 }
+      guineaPig: { min: 0, max: 30 },
+      layerDig: { min: 0, max: 35 },
+      broilerDig: { min: 0, max: 40 },
+      pigDig: { min: 0, max: 35 },
+      broilerSE: { min: 0, max: 40 },
+      pigSE: { min: 0, max: 35 }
     },
     nutrients: {
       energy: 2450,
@@ -257,10 +285,16 @@ export const defaultIngredients: Ingredient[] = [
     max: 5,
     species: createAllSpecies(true),
     limits: {
+      ...createAllLimits(0, 100),
       layer: { min: 0, max: 5 },
       broiler: { min: 0, max: 6 },
       pig: { min: 0, max: 5 },
-      guineaPig: { min: 0, max: 3 }
+      guineaPig: { min: 0, max: 3 },
+      layerDig: { min: 0, max: 5 },
+      broilerDig: { min: 0, max: 6 },
+      pigDig: { min: 0, max: 5 },
+      broilerSE: { min: 0, max: 6 },
+      pigSE: { min: 0, max: 5 }
     },
     nutrients: {
       ...createEmptyNutrients(),
@@ -276,10 +310,16 @@ export const defaultIngredients: Ingredient[] = [
     max: 11,
     species: createAllSpecies(true),
     limits: {
+      ...createAllLimits(0, 100),
       layer: { min: 0, max: 12 },
       broiler: { min: 0, max: 2.5 },
       pig: { min: 0, max: 2 },
-      guineaPig: { min: 0, max: 2 }
+      guineaPig: { min: 0, max: 2 },
+      layerDig: { min: 0, max: 12 },
+      broilerDig: { min: 0, max: 2.5 },
+      pigDig: { min: 0, max: 2 },
+      broilerSE: { min: 0, max: 2.5 },
+      pigSE: { min: 0, max: 2 }
     },
     nutrients: {
       ...createEmptyNutrients(),
@@ -294,10 +334,7 @@ export const defaultIngredients: Ingredient[] = [
     max: 2.5,
     species: createAllSpecies(true),
     limits: {
-      layer: { min: 0, max: 2.5 },
-      broiler: { min: 0, max: 2.5 },
-      pig: { min: 0, max: 2.5 },
-      guineaPig: { min: 0, max: 2.5 }
+      ...createAllLimits(0, 2.5)
     },
     nutrients: {
       ...createEmptyNutrients(),
@@ -313,10 +350,7 @@ export const defaultIngredients: Ingredient[] = [
     max: 0.4,
     species: createAllSpecies(true),
     limits: {
-      layer: { min: 0, max: 0.45 },
-      broiler: { min: 0, max: 0.45 },
-      pig: { min: 0, max: 0.45 },
-      guineaPig: { min: 0, max: 0.45 }
+      ...createAllLimits(0, 0.45)
     },
     nutrients: {
       ...createEmptyNutrients(),
@@ -332,9 +366,13 @@ export const defaultIngredients: Ingredient[] = [
     max: 0.35,
     species: createAllSpecies(true),
     limits: {
-      layer: { min: 0, max: 0.35 },
+      ...createAllLimits(0, 0.35),
       broiler: { min: 0, max: 0.4 },
+      broilerDig: { min: 0, max: 0.4 },
+      broilerSE: { min: 0, max: 0.4 },
       pig: { min: 0, max: 0.3 },
+      pigDig: { min: 0, max: 0.3 },
+      pigSE: { min: 0, max: 0.3 },
       guineaPig: { min: 0, max: 0.25 }
     },
     nutrients: {
@@ -351,10 +389,13 @@ export const defaultIngredients: Ingredient[] = [
     max: 0.35,
     species: createAllSpecies(true),
     limits: {
-      layer: { min: 0, max: 0.35 },
+      ...createAllLimits(0, 0.35),
       broiler: { min: 0, max: 0.45 },
+      broilerDig: { min: 0, max: 0.45 },
+      broilerSE: { min: 0, max: 0.45 },
       pig: { min: 0, max: 0.5 },
-      guineaPig: { min: 0, max: 0.35 }
+      pigDig: { min: 0, max: 0.5 },
+      pigSE: { min: 0, max: 0.5 }
     },
     nutrients: {
       ...createEmptyNutrients(),
