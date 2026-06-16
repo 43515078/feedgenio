@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  createAllLimits,
-  createAllSpecies,
   createEmptyIngredient,
   createEmptyNutrients,
   defaultIngredients,
@@ -149,7 +147,7 @@ function normalizeSpecies(
   species: Partial<Record<SpeciesKey, boolean>> | undefined,
   classifierKeys: SpeciesKey[]
 ): Record<SpeciesKey, boolean> {
-  const normalized: Record<SpeciesKey, boolean> = {};
+  const normalized = {} as Record<SpeciesKey, boolean>;
 
   for (const key of classifierKeys) {
     normalized[key] =
@@ -165,7 +163,7 @@ function normalizeLimits(
   fallbackMax: number,
   classifierKeys: SpeciesKey[]
 ): Record<SpeciesKey, IngredientLimit> {
-  const normalized: Record<SpeciesKey, IngredientLimit> = {};
+  const normalized = {} as Record<SpeciesKey, IngredientLimit>;
 
   for (const key of classifierKeys) {
     normalized[key] = {
@@ -213,12 +211,22 @@ function normalizeSavedIngredients(
   });
 }
 
-function normalizeRequirement(item: Partial<Requirement>, fallbackSpecies: SpeciesKey): Requirement {
+function normalizeRequirement(
+  item: Partial<Requirement>,
+  fallbackSpecies: SpeciesKey,
+  classifierKeys?: SpeciesKey[]
+): Requirement {
+  const incomingSpecies = item.species || fallbackSpecies;
+  const safeSpecies =
+    classifierKeys && classifierKeys.includes(incomingSpecies)
+      ? incomingSpecies
+      : fallbackSpecies;
+
   return {
     ...defaultRequirement,
     ...item,
     name: String(item.name || defaultRequirement.name),
-    species: item.species || fallbackSpecies
+    species: safeSpecies
   };
 }
 
@@ -313,20 +321,16 @@ function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
   };
 }
 
-function getSpeciesFromRequirement(requirement: Requirement): SpeciesKey {
-  return requirement.species;
-}
-
 function prepareIngredientsForRequirement(
   items: EditableIngredient[],
   requirement: Requirement
 ): EditableIngredient[] {
-  const species = getSpeciesFromRequirement(requirement);
+  const classifier = requirement.species;
 
   return items
-    .filter((ingredient) => Boolean(ingredient.species?.[species]))
+    .filter((ingredient) => Boolean(ingredient.species?.[classifier]))
     .map((ingredient) => {
-      const limit = ingredient.limits?.[species];
+      const limit = ingredient.limits?.[classifier];
 
       return {
         ...ingredient,
@@ -344,7 +348,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>("formular");
 
   const [ingredients, setIngredients] = useState<EditableIngredient[]>(
-    getInitialIngredients(classifiers.keys)
+    getInitialIngredients(createDefaultClassifiers().keys)
   );
 
   const [requirementProfiles, setRequirementProfiles] = useState<Requirement[]>([
@@ -447,7 +451,11 @@ export default function HomePage() {
 
     let currentIngredients = getInitialIngredients(currentClassifiers.keys);
     let currentRequirements = [
-      normalizeRequirement(defaultRequirement, currentClassifiers.keys[0])
+      normalizeRequirement(
+        defaultRequirement,
+        currentClassifiers.keys[0],
+        currentClassifiers.keys
+      )
     ];
     let currentIndex = 0;
 
@@ -472,7 +480,11 @@ export default function HomePage() {
       try {
         const parsed = JSON.parse(savedRequirements) as Partial<Requirement>[];
         currentRequirements = parsed.map((item) =>
-          normalizeRequirement(item, currentClassifiers.keys[0])
+          normalizeRequirement(
+            item,
+            currentClassifiers.keys[0],
+            currentClassifiers.keys
+          )
         );
       } catch {}
     }
@@ -495,7 +507,8 @@ export default function HomePage() {
             requirementSnapshot: formula.requirementSnapshot
               ? normalizeRequirement(
                   formula.requirementSnapshot,
-                  currentClassifiers.keys[0]
+                  currentClassifiers.keys[0],
+                  currentClassifiers.keys
                 )
               : undefined,
             costing: normalizeCosting(formula.costing)
@@ -579,14 +592,14 @@ export default function HomePage() {
 
     if (!label) return;
 
-    const baseKey = sanitizeKey(label);
+    const baseKey = sanitizeKey(label) as SpeciesKey;
     if (!baseKey) return;
 
     let key = baseKey;
     let counter = 2;
 
     while (classifiers.keys.includes(key)) {
-      key = `${baseKey}_${counter}`;
+      key = `${baseKey}_${counter}` as SpeciesKey;
       counter += 1;
     }
 
@@ -613,18 +626,21 @@ export default function HomePage() {
       }
     }));
 
-    const updatedProfiles = requirementProfiles.map((profile) => ({ ...profile }));
-
     saveClassifiers(updatedClassifiers);
-    saveAll(updatedIngredients, updatedProfiles, activeRequirementIndex);
+    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
   }
 
-  function renameClassifier(species: SpeciesKey, label: string) {
+  function renameClassifier(species: SpeciesKey) {
+    const currentLabel = classifiers.labels[species] || species;
+    const newLabel = window.prompt("Nuevo nombre del clasificador:", currentLabel);
+
+    if (!newLabel) return;
+
     const updated = {
       keys: classifiers.keys,
       labels: {
         ...classifiers.labels,
-        [species]: label
+        [species]: newLabel
       }
     };
 
@@ -700,7 +716,7 @@ export default function HomePage() {
     field: "price" | "min" | "max",
     value: number
   ) {
-    const activeSpecies = getSpeciesFromRequirement(requirement);
+    const activeClassifier = requirement.species;
 
     const updatedIngredients = ingredients.map((ingredient) => {
       if (ingredient.id !== id) return ingredient;
@@ -717,8 +733,8 @@ export default function HomePage() {
           ...ingredient,
           limits: {
             ...normalizedLimits,
-            [activeSpecies]: {
-              ...normalizedLimits[activeSpecies],
+            [activeClassifier]: {
+              ...normalizedLimits[activeClassifier],
               [field]: value
             }
           }
@@ -906,7 +922,13 @@ export default function HomePage() {
 
     if (!confirmReset) return;
 
-    saveAll(ingredients, [defaultRequirement], 0);
+    const firstRequirement = normalizeRequirement(
+      defaultRequirement,
+      classifiers.keys[0],
+      classifiers.keys
+    );
+
+    saveAll(ingredients, [firstRequirement], 0);
   }
 
   function saveCurrentFormula(costing?: SavedCosting) {
@@ -1037,7 +1059,11 @@ export default function HomePage() {
 
   function getSavedFormulaRequirement(formula: SavedFormula) {
     if (formula.requirementSnapshot) {
-      return normalizeRequirement(formula.requirementSnapshot, classifiers.keys[0]);
+      return normalizeRequirement(
+        formula.requirementSnapshot,
+        classifiers.keys[0],
+        classifiers.keys
+      );
     }
 
     const foundRequirement = requirementProfiles.find(
@@ -1045,7 +1071,7 @@ export default function HomePage() {
     );
 
     if (foundRequirement) {
-      return normalizeRequirement(foundRequirement, classifiers.keys[0]);
+      return normalizeRequirement(foundRequirement, classifiers.keys[0], classifiers.keys);
     }
 
     return normalizeRequirement(
@@ -1053,7 +1079,8 @@ export default function HomePage() {
         ...defaultRequirement,
         name: formula.requirementName
       },
-      classifiers.keys[0]
+      classifiers.keys[0],
+      classifiers.keys
     );
   }
 
@@ -1179,8 +1206,8 @@ export default function HomePage() {
           <MatrixTab
             ingredients={ingredients}
             nutrientKeys={nutrientKeys}
-            speciesKeys={classifiers.keys}
-            speciesLabels={classifiers.labels}
+            classifierKeys={classifiers.keys}
+            classifierLabels={classifiers.labels}
             onAddIngredient={addIngredient}
             onDeleteIngredient={deleteIngredient}
             onMoveIngredient={moveIngredient}
@@ -1199,8 +1226,6 @@ export default function HomePage() {
             requirement={requirement}
             requirementProfiles={requirementProfiles}
             activeRequirementIndex={activeRequirementIndex}
-            speciesKeys={classifiers.keys}
-            speciesLabels={classifiers.labels}
             onSelectRequirement={selectRequirement}
             onUpdateRequirement={updateRequirement}
             onCreateRequirement={createRequirement}
