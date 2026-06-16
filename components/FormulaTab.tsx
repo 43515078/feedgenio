@@ -1,4 +1,8 @@
-import { speciesLabels, type Ingredient } from "@/lib/ingredients";
+import {
+  speciesLabels,
+  type Ingredient,
+  type SpeciesKey
+} from "@/lib/ingredients";
 import type { Requirement } from "@/lib/requirements";
 
 type EditableIngredient = Ingredient & {
@@ -11,6 +15,7 @@ type Props = {
   loading: boolean;
   requirementProfiles: Requirement[];
   activeRequirementIndex: number;
+  activeSpecies: SpeciesKey | null;
   onSelectRequirement: (index: number) => void;
   onToggle: (id: string) => void;
   onUpdate: (
@@ -34,6 +39,7 @@ export default function FormulaTab({
   loading,
   requirementProfiles,
   activeRequirementIndex,
+  activeSpecies,
   onSelectRequirement,
   onToggle,
   onUpdate,
@@ -45,19 +51,22 @@ export default function FormulaTab({
   const activeRequirement =
     requirementProfiles[activeRequirementIndex] || requirementProfiles[0];
 
-  const classifierLabel = activeRequirement?.species
-    ? speciesLabels[activeRequirement.species]
-    : "Sin clasificador";
-
   return (
     <section className="card">
-      <h2>📦 Formular</h2>
+      <h2>📦 Insumos, precios y límites</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
         <strong>Requerimiento activo:</strong>{" "}
         {activeRequirement?.name || "Sin requerimiento"}
-        <br />
-        <strong>Clasificador:</strong> {classifierLabel}
+
+        {activeSpecies && (
+          <>
+            <br />
+            <strong>Clasificador activo:</strong>{" "}
+            {speciesLabels[activeSpecies] || activeSpecies}
+          </>
+        )}
+
         {hiddenIngredientCount > 0 && (
           <>
             <br />
@@ -181,6 +190,35 @@ export default function FormulaTab({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {ingredients.length > 0 && (
+        <div className="note" style={{ marginTop: 14 }}>
+          Ingredientes visibles: <strong>{ingredients.length}</strong>
+          <br />
+          Activos:{" "}
+          <strong>{ingredients.filter((ingredient) => ingredient.active).length}</strong>
+          <br />
+          Suma de mínimos:{" "}
+          <strong>
+            {formatNumber(
+              ingredients
+                .filter((ingredient) => ingredient.active)
+                .reduce((sum, ingredient) => sum + Number(ingredient.min || 0), 0)
+            )}
+            %
+          </strong>
+          <br />
+          Suma de máximos:{" "}
+          <strong>
+            {formatNumber(
+              ingredients
+                .filter((ingredient) => ingredient.active)
+                .reduce((sum, ingredient) => sum + Number(ingredient.max || 0), 0)
+            )}
+            %
+          </strong>
         </div>
       )}
 
