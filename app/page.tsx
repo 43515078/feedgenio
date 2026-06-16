@@ -10,7 +10,8 @@ import {
   defaultIngredients,
   nutrientKeys,
   nutrientLabels,
-  speciesKeys,
+  speciesKeys as defaultSpeciesKeys,
+  speciesLabels as defaultSpeciesLabels,
   type Ingredient,
   type IngredientLimit,
   type NutrientKey,
@@ -48,22 +49,45 @@ type SavedFormula = {
   costing?: SavedCosting;
 };
 
+type ClassifierState = {
+  keys: SpeciesKey[];
+  labels: Record<SpeciesKey, string>;
+};
+
 type TabType = "formular" | "matrix" | "requirements" | "results" | "saved";
 
 const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
 const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
 const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
 const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
+const CLASSIFIERS_STORAGE_KEY = "feedgenio_classifiers_v1";
 
 function numberOrDefault(value: unknown, fallback: number) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
-function createEmptyRequirement(name: string): Requirement {
+function sanitizeKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function createDefaultClassifiers(): ClassifierState {
+  return {
+    keys: [...defaultSpeciesKeys],
+    labels: { ...defaultSpeciesLabels }
+  };
+}
+
+function createEmptyRequirement(name: string, species: SpeciesKey): Requirement {
   return {
     name,
-    species: defaultRequirement.species,
+    species,
     energy: 0,
     energyMax: 0,
     protein: 0,
@@ -109,15 +133,6 @@ function createEmptyRequirement(name: string): Requirement {
   };
 }
 
-function getInitialIngredients(): EditableIngredient[] {
-  return defaultIngredients.map((ingredient) => ({
-    ...ingredient,
-    species: ingredient.species || createAllSpecies(true),
-    limits: ingredient.limits || createAllLimits(ingredient.min, ingredient.max),
-    active: true
-  }));
-}
-
 function normalizeNutrients(
   nutrients: Partial<Record<NutrientKey, number>> | undefined
 ): Record<NutrientKey, number> {
@@ -131,11 +146,12 @@ function normalizeNutrients(
 }
 
 function normalizeSpecies(
-  species: Partial<Record<SpeciesKey, boolean>> | undefined
+  species: Partial<Record<SpeciesKey, boolean>> | undefined,
+  classifierKeys: SpeciesKey[]
 ): Record<SpeciesKey, boolean> {
-  const normalized = createAllSpecies(true);
+  const normalized: Record<SpeciesKey, boolean> = {};
 
-  for (const key of speciesKeys) {
+  for (const key of classifierKeys) {
     normalized[key] =
       typeof species?.[key] === "boolean" ? Boolean(species[key]) : true;
   }
@@ -146,30 +162,38 @@ function normalizeSpecies(
 function normalizeLimits(
   limits: Partial<Record<SpeciesKey, Partial<IngredientLimit>>> | undefined,
   fallbackMin: number,
-  fallbackMax: number
+  fallbackMax: number,
+  classifierKeys: SpeciesKey[]
 ): Record<SpeciesKey, IngredientLimit> {
-  return {
-    layer: {
-      min: numberOrDefault(limits?.layer?.min, fallbackMin),
-      max: numberOrDefault(limits?.layer?.max, fallbackMax)
-    },
-    broiler: {
-      min: numberOrDefault(limits?.broiler?.min, fallbackMin),
-      max: numberOrDefault(limits?.broiler?.max, fallbackMax)
-    },
-    pig: {
-      min: numberOrDefault(limits?.pig?.min, fallbackMin),
-      max: numberOrDefault(limits?.pig?.max, fallbackMax)
-    },
-    guineaPig: {
-      min: numberOrDefault(limits?.guineaPig?.min, fallbackMin),
-      max: numberOrDefault(limits?.guineaPig?.max, fallbackMax)
-    }
-  };
+  const normalized: Record<SpeciesKey, IngredientLimit> = {};
+
+  for (const key of classifierKeys) {
+    normalized[key] = {
+      min: numberOrDefault(limits?.[key]?.min, fallbackMin),
+      max: numberOrDefault(limits?.[key]?.max, fallbackMax)
+    };
+  }
+
+  return normalized;
+}
+
+function getInitialIngredients(classifierKeys: SpeciesKey[]): EditableIngredient[] {
+  return defaultIngredients.map((ingredient) => ({
+    ...ingredient,
+    species: normalizeSpecies(ingredient.species, classifierKeys),
+    limits: normalizeLimits(
+      ingredient.limits,
+      ingredient.min,
+      ingredient.max,
+      classifierKeys
+    ),
+    active: true
+  }));
 }
 
 function normalizeSavedIngredients(
-  items: Array<Partial<EditableIngredient>>
+  items: Array<Partial<EditableIngredient>>,
+  classifierKeys: SpeciesKey[]
 ): EditableIngredient[] {
   return items.map((item) => {
     const min = numberOrDefault(item.min, 0);
@@ -182,19 +206,19 @@ function normalizeSavedIngredients(
       min,
       max,
       active: typeof item.active === "boolean" ? item.active : true,
-      species: normalizeSpecies(item.species),
-      limits: normalizeLimits(item.limits, min, max),
+      species: normalizeSpecies(item.species, classifierKeys),
+      limits: normalizeLimits(item.limits, min, max, classifierKeys),
       nutrients: normalizeNutrients(item.nutrients)
     };
   });
 }
 
-function normalizeRequirement(item: Partial<Requirement>): Requirement {
+function normalizeRequirement(item: Partial<Requirement>, fallbackSpecies: SpeciesKey): Requirement {
   return {
     ...defaultRequirement,
     ...item,
     name: String(item.name || defaultRequirement.name),
-    species: item.species || defaultRequirement.species
+    species: item.species || fallbackSpecies
   };
 }
 
@@ -250,6 +274,7 @@ function getNutrientStatus(
   if (obtained < min - 0.001) return "❌ Bajo";
   if (typeof max === "number" && obtained > max + 0.001) return "🔴 Pasado";
   if (obtained - min <= Math.max(min * 0.03, 0.001)) return "✅ Cerca mín";
+
   if (
     typeof max === "number" &&
     max - obtained <= Math.max(max * 0.03, 0.001)
@@ -288,39 +313,8 @@ function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
   };
 }
 
-function getSpeciesFromRequirement(requirement: Requirement): SpeciesKey | null {
-  if (requirement.species) return requirement.species;
-
-  const name = requirement.name.toLowerCase();
-
-  if (
-    name.includes("ponedora") ||
-    name.includes("postura") ||
-    name.includes("gallina") ||
-    name.includes("hyline") ||
-    name.includes("hy-line") ||
-    name.includes("dekalb")
-  ) {
-    return "layer";
-  }
-
-  if (
-    name.includes("cobb") ||
-    name.includes("pollo") ||
-    name.includes("broiler")
-  ) {
-    return "broiler";
-  }
-
-  if (name.includes("cerdo") || name.includes("porcino")) {
-    return "pig";
-  }
-
-  if (name.includes("cuy")) {
-    return "guineaPig";
-  }
-
-  return null;
+function getSpeciesFromRequirement(requirement: Requirement): SpeciesKey {
+  return requirement.species;
 }
 
 function prepareIngredientsForRequirement(
@@ -328,8 +322,6 @@ function prepareIngredientsForRequirement(
   requirement: Requirement
 ): EditableIngredient[] {
   const species = getSpeciesFromRequirement(requirement);
-
-  if (!species) return items;
 
   return items
     .filter((ingredient) => Boolean(ingredient.species?.[species]))
@@ -345,18 +337,25 @@ function prepareIngredientsForRequirement(
 }
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<TabType>("formular");
-  const [ingredients, setIngredients] =
-    useState<EditableIngredient[]>(getInitialIngredients());
-
-  const [requirementProfiles, setRequirementProfiles] = useState<Requirement[]>(
-    [defaultRequirement]
+  const [classifiers, setClassifiers] = useState<ClassifierState>(
+    createDefaultClassifiers()
   );
+
+  const [activeTab, setActiveTab] = useState<TabType>("formular");
+
+  const [ingredients, setIngredients] = useState<EditableIngredient[]>(
+    getInitialIngredients(classifiers.keys)
+  );
+
+  const [requirementProfiles, setRequirementProfiles] = useState<Requirement[]>([
+    defaultRequirement
+  ]);
 
   const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
   const [savedSearch, setSavedSearch] = useState("");
   const [comparisonFormulaId, setComparisonFormulaId] = useState("");
+
   const [multiplierDrafts, setMultiplierDrafts] = useState<Record<string, string>>(
     {}
   );
@@ -426,8 +425,30 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    let currentIngredients = getInitialIngredients();
-    let currentRequirements = [defaultRequirement];
+    let currentClassifiers = createDefaultClassifiers();
+
+    const savedClassifiers = window.localStorage.getItem(CLASSIFIERS_STORAGE_KEY);
+
+    if (savedClassifiers) {
+      try {
+        const parsed = JSON.parse(savedClassifiers) as ClassifierState;
+
+        if (Array.isArray(parsed.keys) && parsed.keys.length > 0) {
+          currentClassifiers = {
+            keys: parsed.keys,
+            labels: {
+              ...defaultSpeciesLabels,
+              ...(parsed.labels || {})
+            }
+          };
+        }
+      } catch {}
+    }
+
+    let currentIngredients = getInitialIngredients(currentClassifiers.keys);
+    let currentRequirements = [
+      normalizeRequirement(defaultRequirement, currentClassifiers.keys[0])
+    ];
     let currentIndex = 0;
 
     const savedIngredients = window.localStorage.getItem(INGREDIENTS_STORAGE_KEY);
@@ -440,14 +461,19 @@ export default function HomePage() {
     if (savedIngredients) {
       try {
         const parsed = JSON.parse(savedIngredients) as EditableIngredient[];
-        currentIngredients = normalizeSavedIngredients(parsed);
+        currentIngredients = normalizeSavedIngredients(
+          parsed,
+          currentClassifiers.keys
+        );
       } catch {}
     }
 
     if (savedRequirements) {
       try {
         const parsed = JSON.parse(savedRequirements) as Partial<Requirement>[];
-        currentRequirements = parsed.map(normalizeRequirement);
+        currentRequirements = parsed.map((item) =>
+          normalizeRequirement(item, currentClassifiers.keys[0])
+        );
       } catch {}
     }
 
@@ -467,7 +493,10 @@ export default function HomePage() {
           parsed.map((formula) => ({
             ...formula,
             requirementSnapshot: formula.requirementSnapshot
-              ? normalizeRequirement(formula.requirementSnapshot)
+              ? normalizeRequirement(
+                  formula.requirementSnapshot,
+                  currentClassifiers.keys[0]
+                )
               : undefined,
             costing: normalizeCosting(formula.costing)
           }))
@@ -481,11 +510,21 @@ export default function HomePage() {
       currentRequirement
     );
 
+    setClassifiers(currentClassifiers);
     setIngredients(currentIngredients);
     setRequirementProfiles(currentRequirements);
     setActiveRequirementIndex(currentIndex);
     calculateFormula(visible, currentRequirement);
   }, []);
+
+  function saveClassifiers(updated: ClassifierState) {
+    setClassifiers(updated);
+
+    window.localStorage.setItem(
+      CLASSIFIERS_STORAGE_KEY,
+      JSON.stringify(updated)
+    );
+  }
 
   function saveAll(
     updatedIngredients: EditableIngredient[],
@@ -535,6 +574,109 @@ export default function HomePage() {
     }
   }
 
+  function addClassifier() {
+    const label = window.prompt("Nombre del nuevo clasificador:", "Nueva especie");
+
+    if (!label) return;
+
+    const baseKey = sanitizeKey(label);
+    if (!baseKey) return;
+
+    let key = baseKey;
+    let counter = 2;
+
+    while (classifiers.keys.includes(key)) {
+      key = `${baseKey}_${counter}`;
+      counter += 1;
+    }
+
+    const updatedClassifiers: ClassifierState = {
+      keys: [...classifiers.keys, key],
+      labels: {
+        ...classifiers.labels,
+        [key]: label
+      }
+    };
+
+    const updatedIngredients = ingredients.map((ingredient) => ({
+      ...ingredient,
+      species: {
+        ...ingredient.species,
+        [key]: true
+      },
+      limits: {
+        ...ingredient.limits,
+        [key]: {
+          min: ingredient.min,
+          max: ingredient.max
+        }
+      }
+    }));
+
+    const updatedProfiles = requirementProfiles.map((profile) => ({ ...profile }));
+
+    saveClassifiers(updatedClassifiers);
+    saveAll(updatedIngredients, updatedProfiles, activeRequirementIndex);
+  }
+
+  function renameClassifier(species: SpeciesKey, label: string) {
+    const updated = {
+      keys: classifiers.keys,
+      labels: {
+        ...classifiers.labels,
+        [species]: label
+      }
+    };
+
+    saveClassifiers(updated);
+  }
+
+  function deleteClassifier(species: SpeciesKey) {
+    if (classifiers.keys.length <= 1) {
+      window.alert("Debe quedar al menos un clasificador.");
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `¿Eliminar el clasificador "${classifiers.labels[species] || species}"?`
+    );
+
+    if (!confirmDelete) return;
+
+    const nextKeys = classifiers.keys.filter((key) => key !== species);
+    const nextLabels = { ...classifiers.labels };
+    delete nextLabels[species];
+
+    const fallbackSpecies = nextKeys[0];
+
+    const updatedIngredients = ingredients.map((ingredient) => {
+      const nextSpecies = { ...ingredient.species };
+      const nextLimits = { ...ingredient.limits };
+
+      delete nextSpecies[species];
+      delete nextLimits[species];
+
+      return {
+        ...ingredient,
+        species: nextSpecies,
+        limits: nextLimits
+      };
+    });
+
+    const updatedProfiles = requirementProfiles.map((profile) => ({
+      ...profile,
+      species: profile.species === species ? fallbackSpecies : profile.species
+    }));
+
+    const updatedClassifiers = {
+      keys: nextKeys,
+      labels: nextLabels
+    };
+
+    saveClassifiers(updatedClassifiers);
+    saveAll(updatedIngredients, updatedProfiles, activeRequirementIndex);
+  }
+
   function moveIngredient(id: string, direction: "up" | "down") {
     const currentIndex = ingredients.findIndex(
       (ingredient) => ingredient.id === id
@@ -563,11 +705,12 @@ export default function HomePage() {
     const updatedIngredients = ingredients.map((ingredient) => {
       if (ingredient.id !== id) return ingredient;
 
-      if ((field === "min" || field === "max") && activeSpecies) {
+      if (field === "min" || field === "max") {
         const normalizedLimits = normalizeLimits(
           ingredient.limits,
           ingredient.min,
-          ingredient.max
+          ingredient.max,
+          classifiers.keys
         );
 
         return {
@@ -603,7 +746,8 @@ export default function HomePage() {
       const normalizedLimits = normalizeLimits(
         ingredient.limits,
         ingredient.min,
-        ingredient.max
+        ingredient.max,
+        classifiers.keys
       );
 
       return {
@@ -639,7 +783,7 @@ export default function HomePage() {
         ? {
             ...ingredient,
             species: {
-              ...normalizeSpecies(ingredient.species),
+              ...normalizeSpecies(ingredient.species, classifiers.keys),
               [species]: value
             }
           }
@@ -679,7 +823,8 @@ export default function HomePage() {
 
   function createRequirement() {
     const newRequirement = createEmptyRequirement(
-      `Nuevo perfil ${requirementProfiles.length + 1}`
+      `Nuevo perfil ${requirementProfiles.length + 1}`,
+      classifiers.keys[0]
     );
 
     const updatedProfiles = [...requirementProfiles, newRequirement];
@@ -722,7 +867,7 @@ export default function HomePage() {
 
   function addIngredient() {
     const newIngredient: EditableIngredient = {
-      ...createEmptyIngredient(),
+      ...createEmptyIngredient(classifiers.keys),
       active: true
     };
 
@@ -750,7 +895,7 @@ export default function HomePage() {
 
     if (!confirmReset) return;
 
-    const freshIngredients = getInitialIngredients();
+    const freshIngredients = getInitialIngredients(classifiers.keys);
     saveAll(freshIngredients, requirementProfiles, activeRequirementIndex);
   }
 
@@ -892,7 +1037,7 @@ export default function HomePage() {
 
   function getSavedFormulaRequirement(formula: SavedFormula) {
     if (formula.requirementSnapshot) {
-      return normalizeRequirement(formula.requirementSnapshot);
+      return normalizeRequirement(formula.requirementSnapshot, classifiers.keys[0]);
     }
 
     const foundRequirement = requirementProfiles.find(
@@ -900,13 +1045,16 @@ export default function HomePage() {
     );
 
     if (foundRequirement) {
-      return normalizeRequirement(foundRequirement);
+      return normalizeRequirement(foundRequirement, classifiers.keys[0]);
     }
 
-    return normalizeRequirement({
-      ...defaultRequirement,
-      name: formula.requirementName
-    });
+    return normalizeRequirement(
+      {
+        ...defaultRequirement,
+        name: formula.requirementName
+      },
+      classifiers.keys[0]
+    );
   }
 
   function buildSavedFormulaText(formula: SavedFormula) {
@@ -940,7 +1088,9 @@ export default function HomePage() {
       const min = Number(savedRequirement[key] || 0);
       const max = getRequirementMaxValue(savedRequirement, key);
       const maxText =
-        typeof max === "number" ? ` | máx ${formatNutrient(max)}${nutrientSuffix(key)}` : "";
+        typeof max === "number"
+          ? ` | máx ${formatNutrient(max)}${nutrientSuffix(key)}`
+          : "";
 
       lines.push(
         `${nutrientLabels[key]}: obtenido ${formatNutrient(obtained)}${nutrientSuffix(
@@ -1029,6 +1179,8 @@ export default function HomePage() {
           <MatrixTab
             ingredients={ingredients}
             nutrientKeys={nutrientKeys}
+            speciesKeys={classifiers.keys}
+            speciesLabels={classifiers.labels}
             onAddIngredient={addIngredient}
             onDeleteIngredient={deleteIngredient}
             onMoveIngredient={moveIngredient}
@@ -1036,6 +1188,9 @@ export default function HomePage() {
             onUpdateSpecies={updateIngredientSpecies}
             onUpdateLimit={updateIngredientLimit}
             onUpdateNutrient={updateNutrient}
+            onAddClassifier={addClassifier}
+            onRenameClassifier={renameClassifier}
+            onDeleteClassifier={deleteClassifier}
           />
         )}
 
@@ -1044,6 +1199,8 @@ export default function HomePage() {
             requirement={requirement}
             requirementProfiles={requirementProfiles}
             activeRequirementIndex={activeRequirementIndex}
+            speciesKeys={classifiers.keys}
+            speciesLabels={classifiers.labels}
             onSelectRequirement={selectRequirement}
             onUpdateRequirement={updateRequirement}
             onCreateRequirement={createRequirement}
@@ -1111,7 +1268,10 @@ export default function HomePage() {
                       {formula.name}
                     </summary>
 
-                    <div className="note" style={{ marginTop: 12, wordBreak: "break-word" }}>
+                    <div
+                      className="note"
+                      style={{ marginTop: 12, wordBreak: "break-word" }}
+                    >
                       Perfil: {formula.requirementName}
                       <br />
                       Guardada: {new Date(formula.createdAt).toLocaleDateString()}
