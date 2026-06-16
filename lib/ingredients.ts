@@ -37,10 +37,8 @@ export type Ingredient = {
   id: string;
   name: string;
   price: number;
-
   min: number;
   max: number;
-
   species: Record<SpeciesKey, boolean>;
   limits: Record<SpeciesKey, IngredientLimit>;
   nutrients: Record<NutrientKey, number>;
@@ -51,11 +49,9 @@ export const defaultSpeciesClassifiers: SpeciesClassifier[] = [
   { id: "broiler", label: "Pollo" },
   { id: "pig", label: "Cerdo" },
   { id: "guineaPig", label: "Cuy" },
-
   { id: "layerDig", label: "Ponedora dig" },
   { id: "broilerDig", label: "Pollo dig" },
   { id: "pigDig", label: "Cerdo dig" },
-
   { id: "broilerSE", label: "Pollo SE" },
   { id: "pigSE", label: "Cerdo SE" }
 ];
@@ -142,10 +138,13 @@ export const nutrientFullLabels: Record<NutrientKey, string> = {
   linoleicAcid: "Ácido linoleico"
 };
 
-export function createAllSpecies(value = true): Record<SpeciesKey, boolean> {
+export function createAllSpecies(
+  value = true,
+  classifierKeys: SpeciesKey[] = speciesKeys
+): Record<SpeciesKey, boolean> {
   const species = {} as Record<SpeciesKey, boolean>;
 
-  for (const key of speciesKeys) {
+  for (const key of classifierKeys) {
     species[key] = value;
   }
 
@@ -154,11 +153,12 @@ export function createAllSpecies(value = true): Record<SpeciesKey, boolean> {
 
 export function createAllLimits(
   min = 0,
-  max = 100
+  max = 100,
+  classifierKeys: SpeciesKey[] = speciesKeys
 ): Record<SpeciesKey, IngredientLimit> {
   const limits = {} as Record<SpeciesKey, IngredientLimit>;
 
-  for (const key of speciesKeys) {
+  for (const key of classifierKeys) {
     limits[key] = { min, max };
   }
 
@@ -175,7 +175,9 @@ export function createEmptyNutrients(): Record<NutrientKey, number> {
   return nutrients;
 }
 
-export function createEmptyIngredient(): Ingredient {
+export function createEmptyIngredient(
+  classifierKeys: SpeciesKey[] = speciesKeys
+): Ingredient {
   const timestamp = Date.now();
 
   return {
@@ -184,8 +186,8 @@ export function createEmptyIngredient(): Ingredient {
     price: 0,
     min: 0,
     max: 100,
-    species: createAllSpecies(true),
-    limits: createAllLimits(0, 100),
+    species: createAllSpecies(true, classifierKeys),
+    limits: createAllLimits(0, 100, classifierKeys),
     nutrients: createEmptyNutrients()
   };
 }
