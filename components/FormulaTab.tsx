@@ -1,4 +1,4 @@
-import type { Ingredient } from "@/lib/ingredients";
+import { speciesLabels, type Ingredient } from "@/lib/ingredients";
 import type { Requirement } from "@/lib/requirements";
 
 type EditableIngredient = Ingredient & {
@@ -24,6 +24,10 @@ type Props = {
   onAddIngredient: () => void;
 };
 
+function formatNumber(value: number) {
+  return Number(value).toFixed(3);
+}
+
 export default function FormulaTab({
   ingredients,
   hiddenIngredientCount,
@@ -41,18 +45,24 @@ export default function FormulaTab({
   const activeRequirement =
     requirementProfiles[activeRequirementIndex] || requirementProfiles[0];
 
+  const classifierLabel = activeRequirement?.species
+    ? speciesLabels[activeRequirement.species]
+    : "Sin clasificador";
+
   return (
     <section className="card">
-      <h2>📦 Insumos, precios y límites</h2>
+      <h2>📦 Formular</h2>
 
       <div className="note" style={{ marginBottom: 14 }}>
         <strong>Requerimiento activo:</strong>{" "}
         {activeRequirement?.name || "Sin requerimiento"}
+        <br />
+        <strong>Clasificador:</strong> {classifierLabel}
         {hiddenIngredientCount > 0 && (
           <>
             <br />
             Se ocultaron {hiddenIngredientCount} ingrediente(s) no asignados a
-            esta especie en la Matriz.
+            este clasificador en la Matriz.
           </>
         )}
       </div>
@@ -85,8 +95,8 @@ export default function FormulaTab({
 
       {ingredients.length === 0 ? (
         <div className="warning">
-          No hay ingredientes asignados a este tipo de requerimiento. Ve a
-          Matriz y marca qué especies usa cada ingrediente.
+          No hay ingredientes asignados a este clasificador. Ve a Matriz y marca
+          qué clasificadores usa cada ingrediente.
         </div>
       ) : (
         <div className="table-wrap">
@@ -124,7 +134,7 @@ export default function FormulaTab({
                     <input
                       className="price-input"
                       type="number"
-                      step="0.01"
+                      step="0.001"
                       value={ingredient.price}
                       onChange={(event) =>
                         onUpdate(
@@ -140,7 +150,7 @@ export default function FormulaTab({
                     <input
                       className="price-input"
                       type="number"
-                      step="0.1"
+                      step="0.001"
                       value={ingredient.min}
                       onChange={(event) =>
                         onUpdate(
@@ -156,7 +166,7 @@ export default function FormulaTab({
                     <input
                       className="price-input"
                       type="number"
-                      step="0.1"
+                      step="0.001"
                       value={ingredient.max}
                       onChange={(event) =>
                         onUpdate(
