@@ -12,8 +12,8 @@ type EditableIngredient = Ingredient & {
 type Props = {
   ingredients: EditableIngredient[];
   nutrientKeys: NutrientKey[];
-  speciesKeys: SpeciesKey[];
-  speciesLabels: Record<SpeciesKey, string>;
+  classifierKeys: SpeciesKey[];
+  classifierLabels: Record<SpeciesKey, string>;
   onAddIngredient: () => void;
   onDeleteIngredient: (id: string) => void;
   onMoveIngredient: (id: string, direction: "up" | "down") => void;
@@ -31,15 +31,15 @@ type Props = {
     value: number
   ) => void;
   onAddClassifier: () => void;
-  onRenameClassifier: (species: SpeciesKey, label: string) => void;
+  onRenameClassifier: (species: SpeciesKey) => void;
   onDeleteClassifier: (species: SpeciesKey) => void;
 };
 
 export default function MatrixTab({
   ingredients,
   nutrientKeys,
-  speciesKeys,
-  speciesLabels,
+  classifierKeys,
+  classifierLabels,
   onAddIngredient,
   onDeleteIngredient,
   onMoveIngredient,
@@ -60,37 +60,39 @@ export default function MatrixTab({
         matriz nutricional.
       </div>
 
-      <section className="card" style={{ marginBottom: 18 }}>
-        <h2>🏷️ Clasificadores</h2>
+      <h3>🏷️ Clasificadores</h3>
 
-        <div className="note" style={{ marginBottom: 12 }}>
-          Puedes crear clasificadores como Ponedora dig, Pollo dig, Cerdo dig,
-          Pollo SE o los que necesites después.
-        </div>
+      <div className="note" style={{ marginBottom: 14 }}>
+        Puedes agregar nuevos clasificadores para futuras especies, fases o
+        matrices digestibles sin tocar código.
+      </div>
 
-        {speciesKeys.map((species) => (
+      <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+        {classifierKeys.map((species) => (
           <div
             key={species}
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr auto",
+              gridTemplateColumns: "1fr auto auto",
               gap: 8,
               alignItems: "center",
-              marginBottom: 8
+              borderBottom: "1px solid #e5ece7",
+              padding: "8px 0"
             }}
           >
-            <input
-              className="price-input"
-              type="text"
-              value={speciesLabels[species] || species}
-              onChange={(event) =>
-                onRenameClassifier(species, event.target.value)
-              }
-            />
+            <strong>{classifierLabels[species] || species}</strong>
 
             <button
-              type="button"
               className="tab-button"
+              type="button"
+              onClick={() => onRenameClassifier(species)}
+            >
+              Renombrar
+            </button>
+
+            <button
+              className="tab-button"
+              type="button"
               onClick={() => onDeleteClassifier(species)}
               style={{ color: "#a92828" }}
             >
@@ -98,13 +100,13 @@ export default function MatrixTab({
             </button>
           </div>
         ))}
+      </div>
 
-        <button className="action secondary" type="button" onClick={onAddClassifier}>
-          Agregar clasificador
-        </button>
-      </section>
+      <button className="action" type="button" onClick={onAddClassifier}>
+        Agregar clasificador
+      </button>
 
-      <button className="action" type="button" onClick={onAddIngredient}>
+      <button className="action secondary" type="button" onClick={onAddIngredient}>
         Agregar ingrediente
       </button>
 
@@ -115,8 +117,8 @@ export default function MatrixTab({
               <th>Orden</th>
               <th className="matrix-sticky-name">Insumo</th>
 
-              {speciesKeys.map((species) => (
-                <th key={species}>{speciesLabels[species] || species}</th>
+              {classifierKeys.map((species) => (
+                <th key={species}>{classifierLabels[species] || species}</th>
               ))}
 
               {nutrientKeys.map((key) => (
@@ -159,7 +161,7 @@ export default function MatrixTab({
                   />
                 </td>
 
-                {speciesKeys.map((species) => (
+                {classifierKeys.map((species) => (
                   <td key={species}>
                     <input
                       className="checkbox-input"
