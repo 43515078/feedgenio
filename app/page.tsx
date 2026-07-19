@@ -16,7 +16,10 @@ import {
   type SpeciesKey
 } from "@/lib/ingredients";
 
-import { defaultRequirement, type Requirement } from "@/lib/requirements";
+import {
+  defaultRequirement,
+  type Requirement
+} from "@/lib/requirements";
 
 import type { FormulaResult } from "@/lib/solver";
 
@@ -52,17 +55,45 @@ type ClassifierState = {
   labels: Record<SpeciesKey, string>;
 };
 
-type TabType = "formular" | "matrix" | "requirements" | "results" | "saved";
+type TabType =
+  | "formular"
+  | "matrix"
+  | "requirements"
+  | "results"
+  | "saved";
+
+type ProfilesExportFile = {
+  app: string;
+  version: number;
+  exportedAt: string;
+  profiles: Requirement[];
+};
 
 const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
 const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
-const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
-const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
-const CLASSIFIERS_STORAGE_KEY = "feedgenio_classifiers_v1";
+const ACTIVE_REQUIREMENT_INDEX_KEY =
+  "feedgenio_active_requirement_index_v2";
 
-function numberOrDefault(value: unknown, fallback: number) {
+const SAVED_FORMULAS_STORAGE_KEY =
+  "feedgenio_saved_formulas_v1";
+
+const CLASSIFIERS_STORAGE_KEY =
+  "feedgenio_classifiers_v1";
+
+const REQUIREMENTS_BACKUP_HISTORY_KEY =
+  "feedgenio_requirements_backup_history_v1";
+
+const MAX_REQUIREMENT_BACKUPS = 20;
+
+function numberOrDefault(
+  value: unknown,
+  fallback: number
+) {
   const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : fallback;
+
+  return Number.isFinite(numberValue)
+    ? numberValue
+    : fallback;
 }
 
 function sanitizeKey(value: string) {
@@ -78,113 +109,170 @@ function sanitizeKey(value: string) {
 function createDefaultClassifiers(): ClassifierState {
   return {
     keys: [...defaultSpeciesKeys],
-    labels: { ...defaultSpeciesLabels }
+    labels: {
+      ...defaultSpeciesLabels
+    }
   };
 }
 
-function createEmptyRequirement(name: string, species: SpeciesKey): Requirement {
+function createEmptyRequirement(
+  name: string,
+  species: SpeciesKey
+): Requirement {
   return {
     name,
     species,
+
     energy: 0,
     energyMax: 0,
+
     protein: 0,
     proteinMax: 0,
+
     lysine: 0,
     lysineMax: 0,
+
     methionine: 0,
     methionineMax: 0,
+
     metCys: 0,
     metCysMax: 0,
+
     threonine: 0,
     threonineMax: 0,
+
     tryptophan: 0,
     tryptophanMax: 0,
+
     arginine: 0,
     arginineMax: 0,
+
     glycineSerine: 0,
     glycineSerineMax: 0,
+
     histidine: 0,
     histidineMax: 0,
+
     isoleucine: 0,
     isoleucineMax: 0,
+
     leucine: 0,
     leucineMax: 0,
+
     phenylalanine: 0,
     phenylalanineMax: 0,
+
     tyrosine: 0,
     tyrosineMax: 0,
+
     phenylalanineTyrosine: 0,
     phenylalanineTyrosineMax: 0,
+
     valine: 0,
     valineMax: 0,
+
     calcium: 0,
     calciumMax: 0,
+
     availablePhosphorus: 0,
     availablePhosphorusMax: 0,
+
     sodium: 0,
     sodiumMax: 0,
+
     chlorine: 0,
     chlorineMax: 0,
+
     linoleicAcid: 0,
     linoleicAcidMax: 0
   };
 }
 
 function normalizeNutrients(
-  nutrients: Partial<Record<NutrientKey, number>> | undefined
+  nutrients:
+    | Partial<Record<NutrientKey, number>>
+    | undefined
 ): Record<NutrientKey, number> {
   const normalized = createEmptyNutrients();
 
   for (const key of nutrientKeys) {
-    normalized[key] = Number(nutrients?.[key] || 0);
+    normalized[key] = Number(
+      nutrients?.[key] || 0
+    );
   }
 
   return normalized;
 }
 
 function normalizeSpecies(
-  species: Partial<Record<SpeciesKey, boolean>> | undefined,
+  species:
+    | Partial<Record<SpeciesKey, boolean>>
+    | undefined,
   classifierKeys: SpeciesKey[]
 ): Record<SpeciesKey, boolean> {
-  const normalized = {} as Record<SpeciesKey, boolean>;
+  const normalized =
+    {} as Record<SpeciesKey, boolean>;
 
   for (const key of classifierKeys) {
     normalized[key] =
-      typeof species?.[key] === "boolean" ? Boolean(species[key]) : true;
+      typeof species?.[key] === "boolean"
+        ? Boolean(species[key])
+        : true;
   }
 
   return normalized;
 }
 
 function normalizeLimits(
-  limits: Partial<Record<SpeciesKey, Partial<IngredientLimit>>> | undefined,
+  limits:
+    | Partial<
+        Record<
+          SpeciesKey,
+          Partial<IngredientLimit>
+        >
+      >
+    | undefined,
   fallbackMin: number,
   fallbackMax: number,
   classifierKeys: SpeciesKey[]
 ): Record<SpeciesKey, IngredientLimit> {
-  const normalized = {} as Record<SpeciesKey, IngredientLimit>;
+  const normalized =
+    {} as Record<SpeciesKey, IngredientLimit>;
 
   for (const key of classifierKeys) {
     normalized[key] = {
-      min: numberOrDefault(limits?.[key]?.min, fallbackMin),
-      max: numberOrDefault(limits?.[key]?.max, fallbackMax)
+      min: numberOrDefault(
+        limits?.[key]?.min,
+        fallbackMin
+      ),
+      max: numberOrDefault(
+        limits?.[key]?.max,
+        fallbackMax
+      )
     };
   }
 
   return normalized;
 }
 
-function getInitialIngredients(classifierKeys: SpeciesKey[]): EditableIngredient[] {
+function getInitialIngredients(
+  classifierKeys: SpeciesKey[]
+): EditableIngredient[] {
   return defaultIngredients.map((ingredient) => ({
     ...ingredient,
-    species: normalizeSpecies(ingredient.species, classifierKeys),
+
+    species: normalizeSpecies(
+      ingredient.species,
+      classifierKeys
+    ),
+
     limits: normalizeLimits(
       ingredient.limits,
       ingredient.min,
       ingredient.max,
       classifierKeys
     ),
+
     active: true
   }));
 }
@@ -193,20 +281,49 @@ function normalizeSavedIngredients(
   items: Array<Partial<EditableIngredient>>,
   classifierKeys: SpeciesKey[]
 ): EditableIngredient[] {
-  return items.map((item) => {
+  return items.map((item, index) => {
     const min = numberOrDefault(item.min, 0);
     const max = numberOrDefault(item.max, 100);
 
     return {
-      id: String(item.id || `ingrediente_${Date.now()}`),
-      name: String(item.name || "Nuevo ingrediente"),
-      price: numberOrDefault(item.price, 0),
+      id: String(
+        item.id ||
+          `ingrediente_${Date.now()}_${index}`
+      ),
+
+      name: String(
+        item.name ||
+          "Nuevo ingrediente"
+      ),
+
+      price: numberOrDefault(
+        item.price,
+        0
+      ),
+
       min,
       max,
-      active: typeof item.active === "boolean" ? item.active : true,
-      species: normalizeSpecies(item.species, classifierKeys),
-      limits: normalizeLimits(item.limits, min, max, classifierKeys),
-      nutrients: normalizeNutrients(item.nutrients)
+
+      active:
+        typeof item.active === "boolean"
+          ? item.active
+          : true,
+
+      species: normalizeSpecies(
+        item.species,
+        classifierKeys
+      ),
+
+      limits: normalizeLimits(
+        item.limits,
+        min,
+        max,
+        classifierKeys
+      ),
+
+      nutrients: normalizeNutrients(
+        item.nutrients
+      )
     };
   });
 }
@@ -216,29 +333,57 @@ function normalizeRequirement(
   fallbackSpecies: SpeciesKey,
   classifierKeys?: SpeciesKey[]
 ): Requirement {
-  const incomingSpecies = item.species || fallbackSpecies;
+  const incomingSpecies =
+    item.species || fallbackSpecies;
+
   const safeSpecies =
-    classifierKeys && classifierKeys.includes(incomingSpecies)
+    classifierKeys &&
+    classifierKeys.includes(incomingSpecies)
       ? incomingSpecies
       : fallbackSpecies;
 
   return {
     ...defaultRequirement,
     ...item,
-    name: String(item.name || defaultRequirement.name),
+
+    name: String(
+      item.name ||
+        defaultRequirement.name
+    ),
+
     species: safeSpecies
   };
 }
 
-function normalizeCosting(costing: Partial<SavedCosting> | undefined): SavedCosting {
+function normalizeCosting(
+  costing:
+    | Partial<SavedCosting>
+    | undefined
+): SavedCosting {
   return {
-    productionCostPerKg: numberOrDefault(costing?.productionCostPerKg, 0),
-    bagCostPer50Kg: numberOrDefault(costing?.bagCostPer50Kg, 0),
-    marginPercent: numberOrDefault(costing?.marginPercent, 0)
+    productionCostPerKg:
+      numberOrDefault(
+        costing?.productionCostPerKg,
+        0
+      ),
+
+    bagCostPer50Kg:
+      numberOrDefault(
+        costing?.bagCostPer50Kg,
+        0
+      ),
+
+    marginPercent:
+      numberOrDefault(
+        costing?.marginPercent,
+        0
+      )
   };
 }
 
-function createEmptyFormulaResult(message: string): FormulaResult {
+function createEmptyFormulaResult(
+  message: string
+): FormulaResult {
   return {
     feasible: false,
     costPerKg: 0,
@@ -263,15 +408,28 @@ function formatNutrient(value: number) {
 }
 
 function nutrientSuffix(key: NutrientKey) {
-  if (key === "energy") return " kcal/kg";
+  if (key === "energy") {
+    return " kcal/kg";
+  }
+
   return "%";
 }
 
-function getRequirementMaxValue(requirement: Requirement, key: NutrientKey) {
-  const maxKey = `${key}Max` as keyof Requirement;
-  const value = Number(requirement[maxKey] || 0);
+function getRequirementMaxValue(
+  requirement: Requirement,
+  key: NutrientKey
+) {
+  const maxKey =
+    `${key}Max` as keyof Requirement;
 
-  return Number.isFinite(value) && value > 0 ? value : undefined;
+  const value = Number(
+    requirement[maxKey] || 0
+  );
+
+  return Number.isFinite(value) &&
+    value > 0
+    ? value
+    : undefined;
 }
 
 function getNutrientStatus(
@@ -279,13 +437,28 @@ function getNutrientStatus(
   min: number,
   max: number | undefined
 ) {
-  if (obtained < min - 0.001) return "❌ Bajo";
-  if (typeof max === "number" && obtained > max + 0.001) return "🔴 Pasado";
-  if (obtained - min <= Math.max(min * 0.03, 0.001)) return "✅ Cerca mín";
+  if (obtained < min - 0.001) {
+    return "❌ Bajo";
+  }
 
   if (
     typeof max === "number" &&
-    max - obtained <= Math.max(max * 0.03, 0.001)
+    obtained > max + 0.001
+  ) {
+    return "🔴 Pasado";
+  }
+
+  if (
+    obtained - min <=
+    Math.max(min * 0.03, 0.001)
+  ) {
+    return "✅ Cerca mín";
+  }
+
+  if (
+    typeof max === "number" &&
+    max - obtained <=
+      Math.max(max * 0.03, 0.001)
   ) {
     return "🟠 Cerca máx";
   }
@@ -293,23 +466,38 @@ function getNutrientStatus(
   return "🟢 Correcto";
 }
 
-function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
-  const costing = normalizeCosting(formula.costing);
+function calculateSavedCosting(
+  formula: SavedFormula,
+  multiplier: number
+) {
+  const costing =
+    normalizeCosting(formula.costing);
 
   const costWithProductionPerKg =
-    formula.result.costPerKg + costing.productionCostPerKg;
+    formula.result.costPerKg +
+    costing.productionCostPerKg;
 
   const realCostPer50Kg =
-    costWithProductionPerKg * 50 + costing.bagCostPer50Kg;
+    costWithProductionPerKg * 50 +
+    costing.bagCostPer50Kg;
 
   const realCostPer100Kg =
-    costWithProductionPerKg * 100 + costing.bagCostPer50Kg * 2;
+    costWithProductionPerKg * 100 +
+    costing.bagCostPer50Kg * 2;
 
-  const salePer50Kg = realCostPer50Kg * (1 + costing.marginPercent / 100);
+  const salePer50Kg =
+    realCostPer50Kg *
+    (1 + costing.marginPercent / 100);
 
   const totalKg = 100 * multiplier;
-  const totalFormulaCost = formula.result.costPer100Kg * multiplier;
-  const totalRealCost = realCostPer100Kg * multiplier;
+
+  const totalFormulaCost =
+    formula.result.costPer100Kg *
+    multiplier;
+
+  const totalRealCost =
+    realCostPer100Kg *
+    multiplier;
 
   return {
     costWithProductionPerKg,
@@ -325,121 +513,261 @@ function prepareIngredientsForRequirement(
   items: EditableIngredient[],
   requirement: Requirement
 ): EditableIngredient[] {
-  const classifier = requirement.species;
+  const classifier =
+    requirement.species;
 
   return items
-    .filter((ingredient) => Boolean(ingredient.species?.[classifier]))
+    .filter((ingredient) =>
+      Boolean(
+        ingredient.species?.[classifier]
+      )
+    )
     .map((ingredient) => {
-      const limit = ingredient.limits?.[classifier];
+      const limit =
+        ingredient.limits?.[classifier];
 
       return {
         ...ingredient,
-        min: numberOrDefault(limit?.min, ingredient.min),
-        max: numberOrDefault(limit?.max, ingredient.max)
+
+        min: numberOrDefault(
+          limit?.min,
+          ingredient.min
+        ),
+
+        max: numberOrDefault(
+          limit?.max,
+          ingredient.max
+        )
       };
     });
 }
 
+function requirementSignature(
+  requirement: Requirement
+) {
+  return JSON.stringify(requirement);
+}
+
+function createUniqueProfileName(
+  desiredName: string,
+  existingNames: Set<string>
+) {
+  const cleanName =
+    desiredName.trim() ||
+    "Perfil recuperado";
+
+  if (!existingNames.has(cleanName)) {
+    existingNames.add(cleanName);
+    return cleanName;
+  }
+
+  let counter = 2;
+  let candidate =
+    `${cleanName} recuperado ${counter}`;
+
+  while (existingNames.has(candidate)) {
+    counter += 1;
+
+    candidate =
+      `${cleanName} recuperado ${counter}`;
+  }
+
+  existingNames.add(candidate);
+
+  return candidate;
+}
+
 export default function HomePage() {
-  const [classifiers, setClassifiers] = useState<ClassifierState>(
-    createDefaultClassifiers()
-  );
+  const [classifiers, setClassifiers] =
+    useState<ClassifierState>(
+      createDefaultClassifiers()
+    );
 
-  const [activeTab, setActiveTab] = useState<TabType>("formular");
+  const [activeTab, setActiveTab] =
+    useState<TabType>("formular");
 
-  const [ingredients, setIngredients] = useState<EditableIngredient[]>(
-    getInitialIngredients(createDefaultClassifiers().keys)
-  );
+  const [ingredients, setIngredients] =
+    useState<EditableIngredient[]>(
+      getInitialIngredients(
+        createDefaultClassifiers().keys
+      )
+    );
 
-  const [requirementProfiles, setRequirementProfiles] = useState<Requirement[]>([
+  const [
+    requirementProfiles,
+    setRequirementProfiles
+  ] = useState<Requirement[]>([
     defaultRequirement
   ]);
 
-  const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
-  const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
-  const [savedSearch, setSavedSearch] = useState("");
-  const [comparisonFormulaId, setComparisonFormulaId] = useState("");
+  const [
+    activeRequirementIndex,
+    setActiveRequirementIndex
+  ] = useState(0);
 
-  const [multiplierDrafts, setMultiplierDrafts] = useState<Record<string, string>>(
+  const [
+    savedFormulas,
+    setSavedFormulas
+  ] = useState<SavedFormula[]>([]);
+
+  const [
+    savedSearch,
+    setSavedSearch
+  ] = useState("");
+
+  const [
+    comparisonFormulaId,
+    setComparisonFormulaId
+  ] = useState("");
+
+  const [
+    multiplierDrafts,
+    setMultiplierDrafts
+  ] = useState<Record<string, string>>(
     {}
   );
 
-  const [result, setResult] = useState<FormulaResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [result, setResult] =
+    useState<FormulaResult | null>(null);
+
+  const [loading, setLoading] =
+    useState(false);
 
   const requirement =
-    requirementProfiles[activeRequirementIndex] || defaultRequirement;
+    requirementProfiles[
+      activeRequirementIndex
+    ] || defaultRequirement;
 
-  const visibleIngredients = useMemo(() => {
-    return prepareIngredientsForRequirement(ingredients, requirement);
-  }, [ingredients, requirement]);
-
-  const hiddenIngredientCount = ingredients.length - visibleIngredients.length;
-
-  const filteredSavedFormulas = useMemo(() => {
-    const query = savedSearch.trim().toLowerCase();
-
-    if (!query) return savedFormulas;
-
-    return savedFormulas.filter((formula) => {
-      return (
-        formula.name.toLowerCase().includes(query) ||
-        formula.requirementName.toLowerCase().includes(query)
+  const visibleIngredients =
+    useMemo(() => {
+      return prepareIngredientsForRequirement(
+        ingredients,
+        requirement
       );
-    });
-  }, [savedFormulas, savedSearch]);
+    }, [ingredients, requirement]);
 
-  const comparisonFormula = useMemo(() => {
-    if (!comparisonFormulaId) return null;
+  const hiddenIngredientCount =
+    ingredients.length -
+    visibleIngredients.length;
 
-    return (
-      savedFormulas.find((formula) => formula.id === comparisonFormulaId) || null
-    );
-  }, [savedFormulas, comparisonFormulaId]);
+  const filteredSavedFormulas =
+    useMemo(() => {
+      const query =
+        savedSearch
+          .trim()
+          .toLowerCase();
+
+      if (!query) {
+        return savedFormulas;
+      }
+
+      return savedFormulas.filter(
+        (formula) => {
+          return (
+            formula.name
+              .toLowerCase()
+              .includes(query) ||
+            formula.requirementName
+              .toLowerCase()
+              .includes(query)
+          );
+        }
+      );
+    }, [
+      savedFormulas,
+      savedSearch
+    ]);
+
+  const comparisonFormula =
+    useMemo(() => {
+      if (!comparisonFormulaId) {
+        return null;
+      }
+
+      return (
+        savedFormulas.find(
+          (formula) =>
+            formula.id ===
+            comparisonFormulaId
+        ) || null
+      );
+    }, [
+      savedFormulas,
+      comparisonFormulaId
+    ]);
 
   async function calculateFormula(
-    currentIngredients: EditableIngredient[],
+    currentIngredients:
+      EditableIngredient[],
     currentRequirement: Requirement
   ) {
     setLoading(true);
 
-    const activeIngredients = currentIngredients.filter(
-      (ingredient) => ingredient.active
-    );
+    const activeIngredients =
+      currentIngredients.filter(
+        (ingredient) =>
+          ingredient.active
+      );
 
     try {
-      const response = await fetch("/api/solve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ingredients: activeIngredients,
-          requirement: currentRequirement
-        })
-      });
+      const response = await fetch(
+        "/api/solve",
+        {
+          method: "POST",
 
-      const data = (await response.json()) as FormulaResult;
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            ingredients:
+              activeIngredients,
+
+            requirement:
+              currentRequirement
+          })
+        }
+      );
+
+      const data =
+        (await response.json()) as FormulaResult;
+
       setResult(data);
     } catch {
-      setResult(createEmptyFormulaResult("No se pudo conectar con el calculador."));
+      setResult(
+        createEmptyFormulaResult(
+          "No se pudo conectar con el calculador."
+        )
+      );
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    let currentClassifiers = createDefaultClassifiers();
+    let currentClassifiers =
+      createDefaultClassifiers();
 
-    const savedClassifiers = window.localStorage.getItem(CLASSIFIERS_STORAGE_KEY);
+    const savedClassifiers =
+      window.localStorage.getItem(
+        CLASSIFIERS_STORAGE_KEY
+      );
 
     if (savedClassifiers) {
       try {
-        const parsed = JSON.parse(savedClassifiers) as ClassifierState;
+        const parsed =
+          JSON.parse(
+            savedClassifiers
+          ) as ClassifierState;
 
-        if (Array.isArray(parsed.keys) && parsed.keys.length > 0) {
+        if (
+          Array.isArray(parsed.keys) &&
+          parsed.keys.length > 0
+        ) {
           currentClassifiers = {
             keys: parsed.keys,
+
             labels: {
               ...defaultSpeciesLabels,
               ...(parsed.labels || {})
@@ -449,7 +777,11 @@ export default function HomePage() {
       } catch {}
     }
 
-    let currentIngredients = getInitialIngredients(currentClassifiers.keys);
+    let currentIngredients =
+      getInitialIngredients(
+        currentClassifiers.keys
+      );
+
     let currentRequirements = [
       normalizeRequirement(
         defaultRequirement,
@@ -457,80 +789,148 @@ export default function HomePage() {
         currentClassifiers.keys
       )
     ];
+
     let currentIndex = 0;
 
-    const savedIngredients = window.localStorage.getItem(INGREDIENTS_STORAGE_KEY);
-    const savedRequirements = window.localStorage.getItem(REQUIREMENTS_STORAGE_KEY);
-    const savedIndex = window.localStorage.getItem(ACTIVE_REQUIREMENT_INDEX_KEY);
-    const savedFormulasStorage = window.localStorage.getItem(
-      SAVED_FORMULAS_STORAGE_KEY
-    );
+    const savedIngredients =
+      window.localStorage.getItem(
+        INGREDIENTS_STORAGE_KEY
+      );
+
+    const savedRequirements =
+      window.localStorage.getItem(
+        REQUIREMENTS_STORAGE_KEY
+      );
+
+    const savedIndex =
+      window.localStorage.getItem(
+        ACTIVE_REQUIREMENT_INDEX_KEY
+      );
+
+    const savedFormulasStorage =
+      window.localStorage.getItem(
+        SAVED_FORMULAS_STORAGE_KEY
+      );
 
     if (savedIngredients) {
       try {
-        const parsed = JSON.parse(savedIngredients) as EditableIngredient[];
-        currentIngredients = normalizeSavedIngredients(
-          parsed,
-          currentClassifiers.keys
-        );
+        const parsed =
+          JSON.parse(
+            savedIngredients
+          ) as EditableIngredient[];
+
+        if (Array.isArray(parsed)) {
+          currentIngredients =
+            normalizeSavedIngredients(
+              parsed,
+              currentClassifiers.keys
+            );
+        }
       } catch {}
     }
 
     if (savedRequirements) {
       try {
-        const parsed = JSON.parse(savedRequirements) as Partial<Requirement>[];
-        currentRequirements = parsed.map((item) =>
-          normalizeRequirement(
-            item,
-            currentClassifiers.keys[0],
-            currentClassifiers.keys
-          )
-        );
+        const parsed =
+          JSON.parse(
+            savedRequirements
+          ) as Partial<Requirement>[];
+
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0
+        ) {
+          currentRequirements =
+            parsed.map((item) =>
+              normalizeRequirement(
+                item,
+                currentClassifiers.keys[0],
+                currentClassifiers.keys
+              )
+            );
+        }
       } catch {}
     }
 
-    if (savedIndex) {
-      currentIndex = Number(savedIndex || 0);
+    if (savedIndex !== null) {
+      currentIndex =
+        Number(savedIndex || 0);
     }
 
-    if (!currentRequirements[currentIndex]) {
+    if (
+      !Number.isInteger(currentIndex) ||
+      !currentRequirements[currentIndex]
+    ) {
       currentIndex = 0;
     }
 
     if (savedFormulasStorage) {
       try {
-        const parsed = JSON.parse(savedFormulasStorage) as SavedFormula[];
+        const parsed =
+          JSON.parse(
+            savedFormulasStorage
+          ) as SavedFormula[];
 
-        setSavedFormulas(
-          parsed.map((formula) => ({
-            ...formula,
-            requirementSnapshot: formula.requirementSnapshot
-              ? normalizeRequirement(
-                  formula.requirementSnapshot,
-                  currentClassifiers.keys[0],
-                  currentClassifiers.keys
+        if (Array.isArray(parsed)) {
+          setSavedFormulas(
+            parsed.map((formula) => ({
+              ...formula,
+
+              requirementSnapshot:
+                formula.requirementSnapshot
+                  ? normalizeRequirement(
+                      formula.requirementSnapshot,
+                      currentClassifiers.keys[0],
+                      currentClassifiers.keys
+                    )
+                  : undefined,
+
+              costing:
+                normalizeCosting(
+                  formula.costing
                 )
-              : undefined,
-            costing: normalizeCosting(formula.costing)
-          }))
-        );
+            }))
+          );
+        }
       } catch {}
     }
 
-    const currentRequirement = currentRequirements[currentIndex];
-    const visible = prepareIngredientsForRequirement(
-      currentIngredients,
-      currentRequirement
+    const currentRequirement =
+      currentRequirements[
+        currentIndex
+      ];
+
+    const visible =
+      prepareIngredientsForRequirement(
+        currentIngredients,
+        currentRequirement
+      );
+
+    setClassifiers(
+      currentClassifiers
     );
 
-    setClassifiers(currentClassifiers);
-    setIngredients(currentIngredients);
-    setRequirementProfiles(currentRequirements);
-    setActiveRequirementIndex(currentIndex);
-    calculateFormula(visible, currentRequirement);
+    setIngredients(
+      currentIngredients
+    );
+
+    setRequirementProfiles(
+      currentRequirements
+    );
+
+    setActiveRequirementIndex(
+      currentIndex
+    );
+
+    calculateFormula(
+      visible,
+      currentRequirement
+    );
   }, []);
 
-  function saveClassifiers(updated: ClassifierState) {
+  function saveClassifiers(
+    updated: ClassifierState
+  ) {
     setClassifiers(updated);
 
     window.localStorage.setItem(
@@ -539,39 +939,184 @@ export default function HomePage() {
     );
   }
 
+  function saveRequirementBackupIfNeeded(
+    updatedProfiles: Requirement[]
+  ) {
+    const currentRaw =
+      window.localStorage.getItem(
+        REQUIREMENTS_STORAGE_KEY
+      );
+
+    if (!currentRaw) {
+      return;
+    }
+
+    try {
+      const currentProfiles =
+        JSON.parse(
+          currentRaw
+        ) as Requirement[];
+
+      if (
+        !Array.isArray(currentProfiles) ||
+        currentProfiles.length === 0
+      ) {
+        return;
+      }
+
+      const currentSignature =
+        JSON.stringify(
+          currentProfiles
+        );
+
+      const nextSignature =
+        JSON.stringify(
+          updatedProfiles
+        );
+
+      if (
+        currentSignature ===
+        nextSignature
+      ) {
+        return;
+      }
+
+      let history:
+        Requirement[][] = [];
+
+      const historyRaw =
+        window.localStorage.getItem(
+          REQUIREMENTS_BACKUP_HISTORY_KEY
+        );
+
+      if (historyRaw) {
+        try {
+          const parsedHistory =
+            JSON.parse(historyRaw);
+
+          if (
+            Array.isArray(
+              parsedHistory
+            )
+          ) {
+            history =
+              parsedHistory.filter(
+                (item) =>
+                  Array.isArray(item) &&
+                  item.length > 0
+              );
+          }
+        } catch {}
+      }
+
+      const deduplicated =
+        [
+          currentProfiles,
+          ...history
+        ].filter(
+          (profiles, index, array) => {
+            const signature =
+              JSON.stringify(profiles);
+
+            return (
+              array.findIndex(
+                (candidate) =>
+                  JSON.stringify(
+                    candidate
+                  ) === signature
+              ) === index
+            );
+          }
+        );
+
+      window.localStorage.setItem(
+        REQUIREMENTS_BACKUP_HISTORY_KEY,
+        JSON.stringify(
+          deduplicated.slice(
+            0,
+            MAX_REQUIREMENT_BACKUPS
+          )
+        )
+      );
+    } catch {}
+  }
+
   function saveAll(
-    updatedIngredients: EditableIngredient[],
-    updatedProfiles: Requirement[],
+    updatedIngredients:
+      EditableIngredient[],
+    updatedProfiles:
+      Requirement[],
     updatedIndex: number
   ) {
-    const safeIndex = updatedProfiles[updatedIndex] ? updatedIndex : 0;
-    const nextRequirement = updatedProfiles[safeIndex];
+    const safeProfiles =
+      updatedProfiles.length > 0
+        ? updatedProfiles
+        : [
+            normalizeRequirement(
+              defaultRequirement,
+              classifiers.keys[0],
+              classifiers.keys
+            )
+          ];
 
-    setIngredients(updatedIngredients);
-    setRequirementProfiles(updatedProfiles);
-    setActiveRequirementIndex(safeIndex);
+    const safeIndex =
+      safeProfiles[updatedIndex]
+        ? updatedIndex
+        : 0;
+
+    const nextRequirement =
+      safeProfiles[safeIndex];
+
+    saveRequirementBackupIfNeeded(
+      safeProfiles
+    );
+
+    setIngredients(
+      updatedIngredients
+    );
+
+    setRequirementProfiles(
+      safeProfiles
+    );
+
+    setActiveRequirementIndex(
+      safeIndex
+    );
 
     window.localStorage.setItem(
       INGREDIENTS_STORAGE_KEY,
-      JSON.stringify(updatedIngredients)
+      JSON.stringify(
+        updatedIngredients
+      )
     );
 
     window.localStorage.setItem(
       REQUIREMENTS_STORAGE_KEY,
-      JSON.stringify(updatedProfiles)
+      JSON.stringify(
+        safeProfiles
+      )
     );
 
-    window.localStorage.setItem(ACTIVE_REQUIREMENT_INDEX_KEY, String(safeIndex));
+    window.localStorage.setItem(
+      ACTIVE_REQUIREMENT_INDEX_KEY,
+      String(safeIndex)
+    );
 
-    const visible = prepareIngredientsForRequirement(
-      updatedIngredients,
+    const visible =
+      prepareIngredientsForRequirement(
+        updatedIngredients,
+        nextRequirement
+      );
+
+    calculateFormula(
+      visible,
       nextRequirement
     );
-
-    calculateFormula(visible, nextRequirement);
   }
 
-  function saveSavedFormulas(updated: SavedFormula[]) {
+  function saveSavedFormulas(
+    updated: SavedFormula[]
+  ) {
     setSavedFormulas(updated);
 
     window.localStorage.setItem(
@@ -581,63 +1126,116 @@ export default function HomePage() {
 
     if (
       comparisonFormulaId &&
-      !updated.some((formula) => formula.id === comparisonFormulaId)
+      !updated.some(
+        (formula) =>
+          formula.id ===
+          comparisonFormulaId
+      )
     ) {
       setComparisonFormulaId("");
     }
   }
 
   function addClassifier() {
-    const label = window.prompt("Nombre del nuevo clasificador:", "Nueva especie");
+    const label =
+      window.prompt(
+        "Nombre del nuevo clasificador:",
+        "Nueva especie"
+      );
 
-    if (!label) return;
+    if (!label) {
+      return;
+    }
 
-    const baseKey = sanitizeKey(label) as SpeciesKey;
-    if (!baseKey) return;
+    const baseKey =
+      sanitizeKey(
+        label
+      ) as SpeciesKey;
+
+    if (!baseKey) {
+      return;
+    }
 
     let key = baseKey;
     let counter = 2;
 
-    while (classifiers.keys.includes(key)) {
-      key = `${baseKey}_${counter}` as SpeciesKey;
+    while (
+      classifiers.keys.includes(key)
+    ) {
+      key =
+        `${baseKey}_${counter}` as SpeciesKey;
+
       counter += 1;
     }
 
-    const updatedClassifiers: ClassifierState = {
-      keys: [...classifiers.keys, key],
+    const updatedClassifiers:
+      ClassifierState = {
+      keys: [
+        ...classifiers.keys,
+        key
+      ],
+
       labels: {
         ...classifiers.labels,
         [key]: label
       }
     };
 
-    const updatedIngredients = ingredients.map((ingredient) => ({
-      ...ingredient,
-      species: {
-        ...ingredient.species,
-        [key]: true
-      },
-      limits: {
-        ...ingredient.limits,
-        [key]: {
-          min: ingredient.min,
-          max: ingredient.max
-        }
-      }
-    }));
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) => ({
+          ...ingredient,
 
-    saveClassifiers(updatedClassifiers);
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+          species: {
+            ...ingredient.species,
+            [key]: true
+          },
+
+          limits: {
+            ...ingredient.limits,
+
+            [key]: {
+              min: ingredient.min,
+              max: ingredient.max
+            }
+          }
+        })
+      );
+
+    saveClassifiers(
+      updatedClassifiers
+    );
+
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
-  function renameClassifier(species: SpeciesKey) {
-    const currentLabel = classifiers.labels[species] || species;
-    const newLabel = window.prompt("Nuevo nombre del clasificador:", currentLabel);
+  function renameClassifier(
+    species: SpeciesKey
+  ) {
+    const currentLabel =
+      classifiers.labels[species] ||
+      species;
 
-    if (!newLabel) return;
+    const newLabel =
+      window.prompt(
+        "Nuevo nombre del clasificador:",
+        currentLabel
+      );
 
-    const updated = {
-      keys: classifiers.keys,
+    if (!newLabel) {
+      return;
+    }
+
+    const updated:
+      ClassifierState = {
+      keys: [
+        ...classifiers.keys
+      ],
+
       labels: {
         ...classifiers.labels,
         [species]: newLabel
@@ -647,107 +1245,208 @@ export default function HomePage() {
     saveClassifiers(updated);
   }
 
-  function deleteClassifier(species: SpeciesKey) {
-    if (classifiers.keys.length <= 1) {
-      window.alert("Debe quedar al menos un clasificador.");
+  function deleteClassifier(
+    species: SpeciesKey
+  ) {
+    if (
+      classifiers.keys.length <= 1
+    ) {
+      window.alert(
+        "Debe quedar al menos un clasificador."
+      );
+
       return;
     }
 
-    const confirmDelete = window.confirm(
-      `¿Eliminar el clasificador "${classifiers.labels[species] || species}"?`
-    );
+    const confirmDelete =
+      window.confirm(
+        `¿Eliminar el clasificador "${
+          classifiers.labels[species] ||
+          species
+        }"?`
+      );
 
-    if (!confirmDelete) return;
+    if (!confirmDelete) {
+      return;
+    }
 
-    const nextKeys = classifiers.keys.filter((key) => key !== species);
-    const nextLabels = { ...classifiers.labels };
+    const nextKeys =
+      classifiers.keys.filter(
+        (key) =>
+          key !== species
+      );
+
+    const nextLabels = {
+      ...classifiers.labels
+    };
+
     delete nextLabels[species];
 
-    const fallbackSpecies = nextKeys[0];
+    const fallbackSpecies =
+      nextKeys[0];
 
-    const updatedIngredients = ingredients.map((ingredient) => {
-      const nextSpecies = { ...ingredient.species };
-      const nextLimits = { ...ingredient.limits };
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) => {
+          const nextSpecies = {
+            ...ingredient.species
+          };
 
-      delete nextSpecies[species];
-      delete nextLimits[species];
+          const nextLimits = {
+            ...ingredient.limits
+          };
 
-      return {
-        ...ingredient,
-        species: nextSpecies,
-        limits: nextLimits
-      };
-    });
+          delete nextSpecies[species];
+          delete nextLimits[species];
 
-    const updatedProfiles = requirementProfiles.map((profile) => ({
-      ...profile,
-      species: profile.species === species ? fallbackSpecies : profile.species
-    }));
+          return {
+            ...ingredient,
+            species: nextSpecies,
+            limits: nextLimits
+          };
+        }
+      );
 
-    const updatedClassifiers = {
+    const updatedProfiles =
+      requirementProfiles.map(
+        (profile) => ({
+          ...profile,
+
+          species:
+            profile.species === species
+              ? fallbackSpecies
+              : profile.species
+        })
+      );
+
+    const updatedClassifiers:
+      ClassifierState = {
       keys: nextKeys,
       labels: nextLabels
     };
 
-    saveClassifiers(updatedClassifiers);
-    saveAll(updatedIngredients, updatedProfiles, activeRequirementIndex);
-  }
-
-  function moveIngredient(id: string, direction: "up" | "down") {
-    const currentIndex = ingredients.findIndex(
-      (ingredient) => ingredient.id === id
+    saveClassifiers(
+      updatedClassifiers
     );
 
-    if (currentIndex < 0) return;
+    saveAll(
+      updatedIngredients,
+      updatedProfiles,
+      activeRequirementIndex
+    );
+  }
 
-    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+  function moveIngredient(
+    id: string,
+    direction: "up" | "down"
+  ) {
+    const currentIndex =
+      ingredients.findIndex(
+        (ingredient) =>
+          ingredient.id === id
+      );
 
-    if (targetIndex < 0 || targetIndex >= ingredients.length) return;
+    if (currentIndex < 0) {
+      return;
+    }
 
-    const updatedIngredients = [...ingredients];
-    const [moved] = updatedIngredients.splice(currentIndex, 1);
-    updatedIngredients.splice(targetIndex, 0, moved);
+    const targetIndex =
+      direction === "up"
+        ? currentIndex - 1
+        : currentIndex + 1;
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+    if (
+      targetIndex < 0 ||
+      targetIndex >=
+        ingredients.length
+    ) {
+      return;
+    }
+
+    const updatedIngredients = [
+      ...ingredients
+    ];
+
+    const [moved] =
+      updatedIngredients.splice(
+        currentIndex,
+        1
+      );
+
+    updatedIngredients.splice(
+      targetIndex,
+      0,
+      moved
+    );
+
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
   function updateIngredient(
     id: string,
-    field: "price" | "min" | "max",
+    field:
+      | "price"
+      | "min"
+      | "max",
     value: number
   ) {
-    const activeClassifier = requirement.species;
+    const activeClassifier =
+      requirement.species;
 
-    const updatedIngredients = ingredients.map((ingredient) => {
-      if (ingredient.id !== id) return ingredient;
-
-      if (field === "min" || field === "max") {
-        const normalizedLimits = normalizeLimits(
-          ingredient.limits,
-          ingredient.min,
-          ingredient.max,
-          classifiers.keys
-        );
-
-        return {
-          ...ingredient,
-          limits: {
-            ...normalizedLimits,
-            [activeClassifier]: {
-              ...normalizedLimits[activeClassifier],
-              [field]: value
-            }
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) => {
+          if (
+            ingredient.id !== id
+          ) {
+            return ingredient;
           }
-        };
-      }
 
-      return {
-        ...ingredient,
-        [field]: value
-      };
-    });
+          if (
+            field === "min" ||
+            field === "max"
+          ) {
+            const normalizedLimits =
+              normalizeLimits(
+                ingredient.limits,
+                ingredient.min,
+                ingredient.max,
+                classifiers.keys
+              );
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+            return {
+              ...ingredient,
+
+              limits: {
+                ...normalizedLimits,
+
+                [activeClassifier]: {
+                  ...normalizedLimits[
+                    activeClassifier
+                  ],
+
+                  [field]: value
+                }
+              }
+            };
+          }
+
+          return {
+            ...ingredient,
+            [field]: value
+          };
+        }
+      );
+
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
   function updateIngredientLimit(
@@ -756,37 +1455,68 @@ export default function HomePage() {
     field: "min" | "max",
     value: number
   ) {
-    const updatedIngredients = ingredients.map((ingredient) => {
-      if (ingredient.id !== id) return ingredient;
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) => {
+          if (
+            ingredient.id !== id
+          ) {
+            return ingredient;
+          }
 
-      const normalizedLimits = normalizeLimits(
-        ingredient.limits,
-        ingredient.min,
-        ingredient.max,
-        classifiers.keys
+          const normalizedLimits =
+            normalizeLimits(
+              ingredient.limits,
+              ingredient.min,
+              ingredient.max,
+              classifiers.keys
+            );
+
+          return {
+            ...ingredient,
+
+            limits: {
+              ...normalizedLimits,
+
+              [species]: {
+                ...normalizedLimits[
+                  species
+                ],
+
+                [field]: value
+              }
+            }
+          };
+        }
       );
 
-      return {
-        ...ingredient,
-        limits: {
-          ...normalizedLimits,
-          [species]: {
-            ...normalizedLimits[species],
-            [field]: value
-          }
-        }
-      };
-    });
-
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
-  function updateIngredientName(id: string, name: string) {
-    const updatedIngredients = ingredients.map((ingredient) =>
-      ingredient.id === id ? { ...ingredient, name } : ingredient
-    );
+  function updateIngredientName(
+    id: string,
+    name: string
+  ) {
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) =>
+          ingredient.id === id
+            ? {
+                ...ingredient,
+                name
+              }
+            : ingredient
+      );
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
   function updateIngredientSpecies(
@@ -794,101 +1524,619 @@ export default function HomePage() {
     species: SpeciesKey,
     value: boolean
   ) {
-    const updatedIngredients = ingredients.map((ingredient) =>
-      ingredient.id === id
-        ? {
-            ...ingredient,
-            species: {
-              ...normalizeSpecies(ingredient.species, classifiers.keys),
-              [species]: value
-            }
-          }
-        : ingredient
-    );
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) =>
+          ingredient.id === id
+            ? {
+                ...ingredient,
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+                species: {
+                  ...normalizeSpecies(
+                    ingredient.species,
+                    classifiers.keys
+                  ),
+
+                  [species]: value
+                }
+              }
+            : ingredient
+      );
+
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
-  function updateNutrient(id: string, nutrient: NutrientKey, value: number) {
-    const updatedIngredients = ingredients.map((ingredient) =>
-      ingredient.id === id
-        ? {
-            ...ingredient,
-            nutrients: {
-              ...ingredient.nutrients,
-              [nutrient]: value
-            }
-          }
-        : ingredient
-    );
+  function updateNutrient(
+    id: string,
+    nutrient: NutrientKey,
+    value: number
+  ) {
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) =>
+          ingredient.id === id
+            ? {
+                ...ingredient,
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+                nutrients: {
+                  ...ingredient.nutrients,
+                  [nutrient]: value
+                }
+              }
+            : ingredient
+      );
+
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
-  function updateRequirement(field: keyof Requirement, value: string | number) {
-    const updatedProfiles = requirementProfiles.map((profile, index) =>
-      index === activeRequirementIndex ? { ...profile, [field]: value } : profile
-    );
+  function updateRequirement(
+    field: keyof Requirement,
+    value: string | number
+  ) {
+    const updatedProfiles =
+      requirementProfiles.map(
+        (profile, index) =>
+          index ===
+          activeRequirementIndex
+            ? {
+                ...profile,
+                [field]: value
+              }
+            : profile
+      );
 
-    saveAll(ingredients, updatedProfiles, activeRequirementIndex);
+    saveAll(
+      ingredients,
+      updatedProfiles,
+      activeRequirementIndex
+    );
   }
 
-  function selectRequirement(index: number) {
-    saveAll(ingredients, requirementProfiles, index);
+  function selectRequirement(
+    index: number
+  ) {
+    saveAll(
+      ingredients,
+      requirementProfiles,
+      index
+    );
   }
 
   function createRequirement() {
-    const newRequirement = createEmptyRequirement(
-      `Nuevo perfil ${requirementProfiles.length + 1}`,
-      classifiers.keys[0]
+    const newRequirement =
+      createEmptyRequirement(
+        `Nuevo perfil ${
+          requirementProfiles.length + 1
+        }`,
+        classifiers.keys[0]
+      );
+
+    const updatedProfiles = [
+      ...requirementProfiles,
+      newRequirement
+    ];
+
+    const newIndex =
+      updatedProfiles.length - 1;
+
+    saveAll(
+      ingredients,
+      updatedProfiles,
+      newIndex
     );
-
-    const updatedProfiles = [...requirementProfiles, newRequirement];
-    const newIndex = updatedProfiles.length - 1;
-
-    saveAll(ingredients, updatedProfiles, newIndex);
   }
 
   function duplicateRequirement() {
-    const duplicated: Requirement = {
+    const duplicated:
+      Requirement = {
       ...requirement,
-      name: `${requirement.name} copia`
+
+      name:
+        `${requirement.name} copia`
     };
 
-    const updatedProfiles = [...requirementProfiles, duplicated];
-    const newIndex = updatedProfiles.length - 1;
+    const updatedProfiles = [
+      ...requirementProfiles,
+      duplicated
+    ];
 
-    saveAll(ingredients, updatedProfiles, newIndex);
+    const newIndex =
+      updatedProfiles.length - 1;
+
+    saveAll(
+      ingredients,
+      updatedProfiles,
+      newIndex
+    );
   }
 
   function deleteRequirement() {
-    if (requirementProfiles.length <= 1) return;
+    if (
+      requirementProfiles.length <= 1
+    ) {
+      window.alert(
+        "Debe quedar al menos un perfil."
+      );
 
-    const updatedProfiles = requirementProfiles.filter(
-      (_, index) => index !== activeRequirementIndex
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `¿Eliminar el perfil "${requirement.name}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const updatedProfiles =
+      requirementProfiles.filter(
+        (_, index) =>
+          index !==
+          activeRequirementIndex
+      );
+
+    const newIndex =
+      Math.min(
+        activeRequirementIndex,
+        updatedProfiles.length - 1
+      );
+
+    saveAll(
+      ingredients,
+      updatedProfiles,
+      Math.max(0, newIndex)
     );
-
-    const newIndex = Math.max(0, activeRequirementIndex - 1);
-
-    saveAll(ingredients, updatedProfiles, newIndex);
   }
 
-  function toggleIngredient(id: string) {
-    const updatedIngredients = ingredients.map((ingredient) =>
-      ingredient.id === id ? { ...ingredient, active: !ingredient.active } : ingredient
+  function recoverProfilesFromSavedFormulas() {
+    if (
+      savedFormulas.length === 0
+    ) {
+      window.alert(
+        "No se encontraron fórmulas guardadas."
+      );
+
+      return;
+    }
+
+    const existingSignatures =
+      new Set(
+        requirementProfiles.map(
+          requirementSignature
+        )
+      );
+
+    const existingNames =
+      new Set(
+        requirementProfiles.map(
+          (profile) =>
+            profile.name
+        )
+      );
+
+    const recoveredProfiles:
+      Requirement[] = [];
+
+    for (
+      const formula of savedFormulas
+    ) {
+      if (
+        !formula.requirementSnapshot
+      ) {
+        continue;
+      }
+
+      const normalized =
+        normalizeRequirement(
+          formula.requirementSnapshot,
+          classifiers.keys[0],
+          classifiers.keys
+        );
+
+      const signature =
+        requirementSignature(
+          normalized
+        );
+
+      if (
+        existingSignatures.has(
+          signature
+        )
+      ) {
+        continue;
+      }
+
+      existingSignatures.add(
+        signature
+      );
+
+      const uniqueName =
+        createUniqueProfileName(
+          normalized.name ||
+            formula.requirementName ||
+            "Perfil recuperado",
+          existingNames
+        );
+
+      recoveredProfiles.push({
+        ...normalized,
+        name: uniqueName
+      });
+    }
+
+    if (
+      recoveredProfiles.length === 0
+    ) {
+      window.alert(
+        "No se encontraron perfiles nuevos para recuperar. Los perfiles disponibles ya existen o las fórmulas antiguas no contienen una copia del requerimiento."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Se encontraron ${recoveredProfiles.length} perfiles recuperables.\n\n¿Deseas agregarlos a tus perfiles actuales?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const updatedProfiles = [
+      ...requirementProfiles,
+      ...recoveredProfiles
+    ];
+
+    const firstRecoveredIndex =
+      requirementProfiles.length;
+
+    saveAll(
+      ingredients,
+      updatedProfiles,
+      firstRecoveredIndex
     );
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+    window.alert(
+      `¡Rescate completado! Se recuperaron ${recoveredProfiles.length} perfiles desde tus fórmulas guardadas.`
+    );
+  }
+
+  function restoreLatestProfilesBackup() {
+    const historyRaw =
+      window.localStorage.getItem(
+        REQUIREMENTS_BACKUP_HISTORY_KEY
+      );
+
+    if (!historyRaw) {
+      window.alert(
+        "Todavía no existe una copia automática de perfiles."
+      );
+
+      return;
+    }
+
+    try {
+      const history =
+        JSON.parse(
+          historyRaw
+        ) as Partial<Requirement>[][];
+
+      if (
+        !Array.isArray(history) ||
+        !Array.isArray(history[0]) ||
+        history[0].length === 0
+      ) {
+        window.alert(
+          "No se encontró una copia automática válida."
+        );
+
+        return;
+      }
+
+      const restoredProfiles =
+        history[0].map((profile) =>
+          normalizeRequirement(
+            profile,
+            classifiers.keys[0],
+            classifiers.keys
+          )
+        );
+
+      const confirmed =
+        window.confirm(
+          `La última copia contiene ${restoredProfiles.length} perfiles.\n\n¿Deseas restaurarla? Tus perfiles actuales quedarán guardados como una nueva copia automática.`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      saveAll(
+        ingredients,
+        restoredProfiles,
+        0
+      );
+
+      window.alert(
+        `Se restauraron ${restoredProfiles.length} perfiles desde la última copia automática.`
+      );
+    } catch {
+      window.alert(
+        "La copia automática está dañada o no se pudo leer."
+      );
+    }
+  }
+
+  function exportProfiles() {
+    const exportData:
+      ProfilesExportFile = {
+      app: "FeedGenio",
+      version: 1,
+      exportedAt:
+        new Date().toISOString(),
+      profiles: requirementProfiles
+    };
+
+    const json =
+      JSON.stringify(
+        exportData,
+        null,
+        2
+      );
+
+    const blob =
+      new Blob(
+        [json],
+        {
+          type: "application/json"
+        }
+      );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    const dateText =
+      new Date()
+        .toISOString()
+        .slice(0, 10);
+
+    link.href = url;
+
+    link.download =
+      `feedgenio_perfiles_${dateText}.json`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    window.alert(
+      `Se exportaron ${requirementProfiles.length} perfiles. Guarda el archivo en un lugar seguro.`
+    );
+  }
+
+  async function importProfiles(
+    file: File
+  ) {
+    try {
+      const text =
+        await file.text();
+
+      const parsed =
+        JSON.parse(text) as
+          | ProfilesExportFile
+          | Partial<Requirement>[];
+
+      const rawProfiles =
+        Array.isArray(parsed)
+          ? parsed
+          : parsed.profiles;
+
+      if (
+        !Array.isArray(rawProfiles) ||
+        rawProfiles.length === 0
+      ) {
+        window.alert(
+          "El archivo no contiene perfiles válidos."
+        );
+
+        return;
+      }
+
+      const normalizedProfiles =
+        rawProfiles.map(
+          (profile) =>
+            normalizeRequirement(
+              profile,
+              classifiers.keys[0],
+              classifiers.keys
+            )
+        );
+
+      const mode =
+        window.prompt(
+          `Se encontraron ${normalizedProfiles.length} perfiles.\n\nEscribe AGREGAR para conservar tus perfiles actuales.\n\nEscribe REEMPLAZAR para sustituirlos.`,
+          "AGREGAR"
+        );
+
+      if (!mode) {
+        return;
+      }
+
+      const normalizedMode =
+        mode
+          .trim()
+          .toUpperCase();
+
+      if (
+        normalizedMode !== "AGREGAR" &&
+        normalizedMode !== "REEMPLAZAR"
+      ) {
+        window.alert(
+          "Operación cancelada. Debes escribir AGREGAR o REEMPLAZAR."
+        );
+
+        return;
+      }
+
+      if (
+        normalizedMode === "REEMPLAZAR"
+      ) {
+        const confirmed =
+          window.confirm(
+            `¿Reemplazar tus perfiles actuales por los ${normalizedProfiles.length} perfiles importados?`
+          );
+
+        if (!confirmed) {
+          return;
+        }
+
+        saveAll(
+          ingredients,
+          normalizedProfiles,
+          0
+        );
+
+        window.alert(
+          `Se importaron ${normalizedProfiles.length} perfiles y reemplazaron los anteriores.`
+        );
+
+        return;
+      }
+
+      const existingSignatures =
+        new Set(
+          requirementProfiles.map(
+            requirementSignature
+          )
+        );
+
+      const existingNames =
+        new Set(
+          requirementProfiles.map(
+            (profile) =>
+              profile.name
+          )
+        );
+
+      const profilesToAdd:
+        Requirement[] = [];
+
+      for (
+        const profile of normalizedProfiles
+      ) {
+        const signature =
+          requirementSignature(
+            profile
+          );
+
+        if (
+          existingSignatures.has(
+            signature
+          )
+        ) {
+          continue;
+        }
+
+        existingSignatures.add(
+          signature
+        );
+
+        profilesToAdd.push({
+          ...profile,
+
+          name:
+            createUniqueProfileName(
+              profile.name ||
+                "Perfil importado",
+              existingNames
+            )
+        });
+      }
+
+      if (
+        profilesToAdd.length === 0
+      ) {
+        window.alert(
+          "Todos los perfiles del archivo ya existen."
+        );
+
+        return;
+      }
+
+      const updatedProfiles = [
+        ...requirementProfiles,
+        ...profilesToAdd
+      ];
+
+      saveAll(
+        ingredients,
+        updatedProfiles,
+        requirementProfiles.length
+      );
+
+      window.alert(
+        `Se agregaron ${profilesToAdd.length} perfiles.`
+      );
+    } catch {
+      window.alert(
+        "No se pudo leer el archivo. Verifica que sea un respaldo JSON de FeedGenio."
+      );
+    }
+  }
+
+  function toggleIngredient(
+    id: string
+  ) {
+    const updatedIngredients =
+      ingredients.map(
+        (ingredient) =>
+          ingredient.id === id
+            ? {
+                ...ingredient,
+                active:
+                  !ingredient.active
+              }
+            : ingredient
+      );
+
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
   function addIngredient() {
-    const newIngredient: EditableIngredient = {
-      ...createEmptyIngredient(classifiers.keys),
+    const newIngredient:
+      EditableIngredient = {
+      ...createEmptyIngredient(
+        classifiers.keys
+      ),
+
       active: true
     };
 
     saveAll(
-      [...ingredients, newIngredient],
+      [
+        ...ingredients,
+        newIngredient
+      ],
       requirementProfiles,
       activeRequirementIndex
     );
@@ -896,105 +2144,181 @@ export default function HomePage() {
     setActiveTab("matrix");
   }
 
-  function deleteIngredient(id: string) {
-    const updatedIngredients = ingredients.filter(
-      (ingredient) => ingredient.id !== id
-    );
+  function deleteIngredient(
+    id: string
+  ) {
+    const updatedIngredients =
+      ingredients.filter(
+        (ingredient) =>
+          ingredient.id !== id
+      );
 
-    saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
+    saveAll(
+      updatedIngredients,
+      requirementProfiles,
+      activeRequirementIndex
+    );
   }
 
   function resetIngredients() {
-    const confirmReset = window.confirm(
-      "Esto reiniciará la matriz de ingredientes. Si tienes ingredientes nuevos escritos a mano, se perderán. ¿Seguro?"
-    );
+    const confirmReset =
+      window.confirm(
+        "Esto reiniciará la matriz de ingredientes. Si tienes ingredientes nuevos escritos a mano, se perderán. ¿Seguro?"
+      );
 
-    if (!confirmReset) return;
-
-    const freshIngredients = getInitialIngredients(classifiers.keys);
-    saveAll(freshIngredients, requirementProfiles, activeRequirementIndex);
-  }
-
-  function resetRequirement() {
-    const confirmReset = window.confirm(
-      "Esto reiniciará todos los perfiles de requerimientos. ¿Seguro?"
-    );
-
-    if (!confirmReset) return;
-
-    const firstRequirement = normalizeRequirement(
-      defaultRequirement,
-      classifiers.keys[0],
-      classifiers.keys
-    );
-
-    saveAll(ingredients, [firstRequirement], 0);
-  }
-
-  function saveCurrentFormula(costing?: SavedCosting) {
-    if (!result?.feasible) {
-      window.alert("No hay fórmula válida para guardar.");
+    if (!confirmReset) {
       return;
     }
 
-    const formulaName = window.prompt(
-      "Nombre de la fórmula:",
-      `${requirement.name} ${new Date().toLocaleDateString()}`
+    const freshIngredients =
+      getInitialIngredients(
+        classifiers.keys
+      );
+
+    saveAll(
+      freshIngredients,
+      requirementProfiles,
+      activeRequirementIndex
     );
+  }
 
-    if (!formulaName) return;
+  function saveCurrentFormula(
+    costing?: SavedCosting
+  ) {
+    if (!result?.feasible) {
+      window.alert(
+        "No hay fórmula válida para guardar."
+      );
 
-    const newFormula: SavedFormula = {
+      return;
+    }
+
+    const formulaName =
+      window.prompt(
+        "Nombre de la fórmula:",
+        `${requirement.name} ${new Date().toLocaleDateString()}`
+      );
+
+    if (!formulaName) {
+      return;
+    }
+
+    const newFormula:
+      SavedFormula = {
       id: Date.now().toString(),
+
       name: formulaName,
-      createdAt: new Date().toISOString(),
+
+      createdAt:
+        new Date().toISOString(),
+
       multiplier: 1,
-      requirementName: requirement.name,
+
+      requirementName:
+        requirement.name,
+
       result,
-      ingredientsSnapshot: ingredients,
-      requirementSnapshot: requirement,
-      costing: normalizeCosting(costing)
+
+      ingredientsSnapshot:
+        ingredients,
+
+      requirementSnapshot:
+        requirement,
+
+      costing:
+        normalizeCosting(costing)
     };
 
-    saveSavedFormulas([newFormula, ...savedFormulas]);
-    window.alert("Fórmula guardada.");
+    saveSavedFormulas([
+      newFormula,
+      ...savedFormulas
+    ]);
+
+    window.alert(
+      "Fórmula guardada."
+    );
+
     setActiveTab("saved");
   }
 
-  function deleteSavedFormula(id: string) {
-    saveSavedFormulas(savedFormulas.filter((item) => item.id !== id));
+  function deleteSavedFormula(
+    id: string
+  ) {
+    saveSavedFormulas(
+      savedFormulas.filter(
+        (item) =>
+          item.id !== id
+      )
+    );
 
-    setMultiplierDrafts((current) => {
-      const copy = { ...current };
-      delete copy[id];
-      return copy;
-    });
+    setMultiplierDrafts(
+      (current) => {
+        const copy = {
+          ...current
+        };
+
+        delete copy[id];
+
+        return copy;
+      }
+    );
   }
 
-  function renameSavedFormula(formula: SavedFormula) {
-    const newName = window.prompt("Nuevo nombre:", formula.name);
-    if (!newName) return;
+  function renameSavedFormula(
+    formula: SavedFormula
+  ) {
+    const newName =
+      window.prompt(
+        "Nuevo nombre:",
+        formula.name
+      );
+
+    if (!newName) {
+      return;
+    }
 
     saveSavedFormulas(
-      savedFormulas.map((item) =>
-        item.id === formula.id ? { ...item, name: newName } : item
+      savedFormulas.map(
+        (item) =>
+          item.id === formula.id
+            ? {
+                ...item,
+                name: newName
+              }
+            : item
       )
     );
   }
 
-  function duplicateSavedFormula(formula: SavedFormula) {
-    const copy: SavedFormula = {
+  function duplicateSavedFormula(
+    formula: SavedFormula
+  ) {
+    const copy:
+      SavedFormula = {
       ...formula,
-      id: Date.now().toString(),
-      name: `${formula.name} copia`,
-      createdAt: new Date().toISOString()
+
+      id:
+        Date.now().toString(),
+
+      name:
+        `${formula.name} copia`,
+
+      createdAt:
+        new Date().toISOString()
     };
 
-    saveSavedFormulas([copy, ...savedFormulas]);
+    saveSavedFormulas([
+      copy,
+      ...savedFormulas
+    ]);
   }
 
-  function viewSavedFormula(formula: SavedFormula) {
-    setResult(formula.result);
+  function viewSavedFormula(
+    formula: SavedFormula
+  ) {
+    setResult(
+      formula.result
+    );
 
     window.alert(
       "Fórmula abierta en resultados. No se modificó la matriz ni los requerimientos."
@@ -1003,62 +2327,134 @@ export default function HomePage() {
     setActiveTab("results");
   }
 
-  function compareWithSavedFormula(formula: SavedFormula) {
-    setComparisonFormulaId(formula.id);
+  function compareWithSavedFormula(
+    formula: SavedFormula
+  ) {
+    setComparisonFormulaId(
+      formula.id
+    );
+
     setActiveTab("results");
   }
 
-  function getMultiplierText(formula: SavedFormula) {
-    return multiplierDrafts[formula.id] ?? String(formula.multiplier);
+  function getMultiplierText(
+    formula: SavedFormula
+  ) {
+    return (
+      multiplierDrafts[
+        formula.id
+      ] ??
+      String(formula.multiplier)
+    );
   }
 
-  function getMultiplierNumber(formula: SavedFormula) {
-    const text = getMultiplierText(formula).replace(",", ".");
+  function getMultiplierNumber(
+    formula: SavedFormula
+  ) {
+    const text =
+      getMultiplierText(formula)
+        .replace(",", ".");
+
     const value = Number(text);
 
-    if (!Number.isFinite(value) || value <= 0) return 0;
+    if (
+      !Number.isFinite(value) ||
+      value <= 0
+    ) {
+      return 0;
+    }
 
     return value;
   }
 
-  function updateFormulaMultiplierText(id: string, value: string) {
-    const cleanValue = value.replace(",", ".");
+  function updateFormulaMultiplierText(
+    id: string,
+    value: string
+  ) {
+    const cleanValue =
+      value.replace(",", ".");
 
-    setMultiplierDrafts((current) => ({
-      ...current,
-      [id]: cleanValue
-    }));
+    setMultiplierDrafts(
+      (current) => ({
+        ...current,
+        [id]: cleanValue
+      })
+    );
 
-    if (cleanValue === "") return;
+    if (cleanValue === "") {
+      return;
+    }
 
-    const numericValue = Number(cleanValue);
-    if (!Number.isFinite(numericValue) || numericValue <= 0) return;
+    const numericValue =
+      Number(cleanValue);
+
+    if (
+      !Number.isFinite(
+        numericValue
+      ) ||
+      numericValue <= 0
+    ) {
+      return;
+    }
 
     saveSavedFormulas(
-      savedFormulas.map((item) =>
-        item.id === id ? { ...item, multiplier: numericValue } : item
+      savedFormulas.map(
+        (item) =>
+          item.id === id
+            ? {
+                ...item,
+
+                multiplier:
+                  numericValue
+              }
+            : item
       )
     );
   }
 
-  function finishMultiplierEdit(formula: SavedFormula) {
-    const numericValue = getMultiplierNumber(formula);
-    const finalValue = numericValue > 0 ? numericValue : 1;
+  function finishMultiplierEdit(
+    formula: SavedFormula
+  ) {
+    const numericValue =
+      getMultiplierNumber(
+        formula
+      );
+
+    const finalValue =
+      numericValue > 0
+        ? numericValue
+        : 1;
 
     saveSavedFormulas(
-      savedFormulas.map((item) =>
-        item.id === formula.id ? { ...item, multiplier: finalValue } : item
+      savedFormulas.map(
+        (item) =>
+          item.id === formula.id
+            ? {
+                ...item,
+
+                multiplier:
+                  finalValue
+              }
+            : item
       )
     );
 
-    setMultiplierDrafts((current) => ({
-      ...current,
-      [formula.id]: String(finalValue)
-    }));
+    setMultiplierDrafts(
+      (current) => ({
+        ...current,
+
+        [formula.id]:
+          String(finalValue)
+      })
+    );
   }
 
-  function getSavedFormulaRequirement(formula: SavedFormula) {
-    if (formula.requirementSnapshot) {
+  function getSavedFormulaRequirement(
+    formula: SavedFormula
+  ) {
+    if (
+      formula.requirementSnapshot
+    ) {
       return normalizeRequirement(
         formula.requirementSnapshot,
         classifiers.keys[0],
@@ -1066,28 +2462,52 @@ export default function HomePage() {
       );
     }
 
-    const foundRequirement = requirementProfiles.find(
-      (profile) => profile.name === formula.requirementName
-    );
+    const foundRequirement =
+      requirementProfiles.find(
+        (profile) =>
+          profile.name ===
+          formula.requirementName
+      );
 
     if (foundRequirement) {
-      return normalizeRequirement(foundRequirement, classifiers.keys[0], classifiers.keys);
+      return normalizeRequirement(
+        foundRequirement,
+        classifiers.keys[0],
+        classifiers.keys
+      );
     }
 
     return normalizeRequirement(
       {
         ...defaultRequirement,
-        name: formula.requirementName
+
+        name:
+          formula.requirementName
       },
+
       classifiers.keys[0],
       classifiers.keys
     );
   }
 
-  function buildSavedFormulaText(formula: SavedFormula) {
-    const multiplier = getMultiplierNumber(formula);
-    const costingData = calculateSavedCosting(formula, multiplier);
-    const savedRequirement = getSavedFormulaRequirement(formula);
+  function buildSavedFormulaText(
+    formula: SavedFormula
+  ) {
+    const multiplier =
+      getMultiplierNumber(
+        formula
+      );
+
+    const costingData =
+      calculateSavedCosting(
+        formula,
+        multiplier
+      );
+
+    const savedRequirement =
+      getSavedFormulaRequirement(
+        formula
+      );
 
     const lines = [
       `FeedGenio - ${formula.name}`,
@@ -1103,396 +2523,794 @@ export default function HomePage() {
       "Ingredientes:"
     ];
 
-    formula.result.ingredients.forEach((item) => {
-      lines.push(`${item.name}: ${formatKg(item.amountKg100 * multiplier)} kg`);
-    });
+    formula.result.ingredients.forEach(
+      (item) => {
+        lines.push(
+          `${item.name}: ${formatKg(item.amountKg100 * multiplier)} kg`
+        );
+      }
+    );
 
     lines.push("");
-    lines.push("Nutrientes obtenidos VS requerimiento:");
+    lines.push(
+      "Nutrientes obtenidos VS requerimiento:"
+    );
 
-    nutrientKeys.forEach((key) => {
-      const obtained = Number(formula.result.nutrients[key] || 0);
-      const min = Number(savedRequirement[key] || 0);
-      const max = getRequirementMaxValue(savedRequirement, key);
-      const maxText =
-        typeof max === "number"
-          ? ` | máx ${formatNutrient(max)}${nutrientSuffix(key)}`
-          : "";
+    nutrientKeys.forEach(
+      (key) => {
+        const obtained =
+          Number(
+            formula.result
+              .nutrients[key] || 0
+          );
 
-      lines.push(
-        `${nutrientLabels[key]}: obtenido ${formatNutrient(obtained)}${nutrientSuffix(
-          key
-        )} | mín ${formatNutrient(min)}${nutrientSuffix(key)}${maxText}`
-      );
-    });
+        const min =
+          Number(
+            savedRequirement[key] || 0
+          );
+
+        const max =
+          getRequirementMaxValue(
+            savedRequirement,
+            key
+          );
+
+        const maxText =
+          typeof max === "number"
+            ? ` | máx ${formatNutrient(max)}${nutrientSuffix(key)}`
+            : "";
+
+        lines.push(
+          `${nutrientLabels[key]}: obtenido ${formatNutrient(obtained)}${nutrientSuffix(
+            key
+          )} | mín ${formatNutrient(min)}${nutrientSuffix(key)}${maxText}`
+        );
+      }
+    );
 
     return lines.join("\n");
   }
 
-  async function copySavedFormula(formula: SavedFormula) {
+  async function copySavedFormula(
+    formula: SavedFormula
+  ) {
     try {
-      await navigator.clipboard.writeText(buildSavedFormulaText(formula));
-      window.alert("Fórmula copiada.");
+      await navigator.clipboard.writeText(
+        buildSavedFormulaText(
+          formula
+        )
+      );
+
+      window.alert(
+        "Fórmula copiada."
+      );
     } catch {
-      window.alert("No se pudo copiar la fórmula.");
+      window.alert(
+        "No se pudo copiar la fórmula."
+      );
     }
   }
 
   return (
     <main className="page">
-      <div className="container" style={{ overflowX: "hidden" }}>
+      <div
+        className="container"
+        style={{
+          overflowX: "hidden"
+        }}
+      >
         <section className="hero">
           <h1>FeedGenio 🧠🌽</h1>
-          <p>Sistema profesional de formulación de raciones por mínimo costo.</p>
+
+          <p>
+            Sistema profesional de
+            formulación de raciones por
+            mínimo costo.
+          </p>
         </section>
 
         <section className="tabs">
           <button
-            className={`tab-button ${activeTab === "formular" ? "active" : ""}`}
-            onClick={() => setActiveTab("formular")}
+            className={`tab-button ${
+              activeTab === "formular"
+                ? "active"
+                : ""
+            }`}
+            onClick={() =>
+              setActiveTab("formular")
+            }
           >
             📦 Formular
           </button>
 
           <button
-            className={`tab-button ${activeTab === "matrix" ? "active" : ""}`}
-            onClick={() => setActiveTab("matrix")}
+            className={`tab-button ${
+              activeTab === "matrix"
+                ? "active"
+                : ""
+            }`}
+            onClick={() =>
+              setActiveTab("matrix")
+            }
           >
             🧪 Matriz
           </button>
 
           <button
             className={`tab-button ${
-              activeTab === "requirements" ? "active" : ""
+              activeTab ===
+              "requirements"
+                ? "active"
+                : ""
             }`}
-            onClick={() => setActiveTab("requirements")}
+            onClick={() =>
+              setActiveTab(
+                "requirements"
+              )
+            }
           >
             🎯 Requerimientos
           </button>
 
           <button
-            className={`tab-button ${activeTab === "results" ? "active" : ""}`}
-            onClick={() => setActiveTab("results")}
+            className={`tab-button ${
+              activeTab === "results"
+                ? "active"
+                : ""
+            }`}
+            onClick={() =>
+              setActiveTab("results")
+            }
           >
             📊 Resultados
           </button>
 
           <button
-            className={`tab-button ${activeTab === "saved" ? "active" : ""}`}
-            onClick={() => setActiveTab("saved")}
+            className={`tab-button ${
+              activeTab === "saved"
+                ? "active"
+                : ""
+            }`}
+            onClick={() =>
+              setActiveTab("saved")
+            }
           >
             💾 Guardadas
           </button>
         </section>
 
-        {activeTab === "formular" && (
+        {activeTab ===
+          "formular" && (
           <FormulaTab
-  ingredients={visibleIngredients}
-  hiddenIngredientCount={hiddenIngredientCount}
-  loading={loading}
-  requirementProfiles={requirementProfiles}
-  activeRequirementIndex={activeRequirementIndex}
-  activeSpecies={requirement.species}
-  onSelectRequirement={selectRequirement}
-  onToggle={toggleIngredient}
-  onUpdate={updateIngredient}
-  onCalculate={() => calculateFormula(visibleIngredients, requirement)}
-  onGoToResults={() => setActiveTab("results")}
-  onReset={resetIngredients}
-  onAddIngredient={addIngredient}
-/>
+            ingredients={
+              visibleIngredients
+            }
+            hiddenIngredientCount={
+              hiddenIngredientCount
+            }
+            loading={loading}
+            requirementProfiles={
+              requirementProfiles
+            }
+            activeRequirementIndex={
+              activeRequirementIndex
+            }
+            activeSpecies={
+              requirement.species
+            }
+            onSelectRequirement={
+              selectRequirement
+            }
+            onToggle={
+              toggleIngredient
+            }
+            onUpdate={
+              updateIngredient
+            }
+            onCalculate={() =>
+              calculateFormula(
+                visibleIngredients,
+                requirement
+              )
+            }
+            onGoToResults={() =>
+              setActiveTab("results")
+            }
+            onReset={
+              resetIngredients
+            }
+            onAddIngredient={
+              addIngredient
+            }
+          />
         )}
 
-        {activeTab === "matrix" && (
+        {activeTab ===
+          "matrix" && (
           <MatrixTab
             ingredients={ingredients}
-            nutrientKeys={nutrientKeys}
-            classifierKeys={classifiers.keys}
-            classifierLabels={classifiers.labels}
-            onAddIngredient={addIngredient}
-            onDeleteIngredient={deleteIngredient}
-            onMoveIngredient={moveIngredient}
-            onUpdateName={updateIngredientName}
-            onUpdateSpecies={updateIngredientSpecies}
-            onUpdateLimit={updateIngredientLimit}
-            onUpdateNutrient={updateNutrient}
-            onAddClassifier={addClassifier}
-            onRenameClassifier={renameClassifier}
-            onDeleteClassifier={deleteClassifier}
+            nutrientKeys={
+              nutrientKeys
+            }
+            classifierKeys={
+              classifiers.keys
+            }
+            classifierLabels={
+              classifiers.labels
+            }
+            onAddIngredient={
+              addIngredient
+            }
+            onDeleteIngredient={
+              deleteIngredient
+            }
+            onMoveIngredient={
+              moveIngredient
+            }
+            onUpdateName={
+              updateIngredientName
+            }
+            onUpdateSpecies={
+              updateIngredientSpecies
+            }
+            onUpdateLimit={
+              updateIngredientLimit
+            }
+            onUpdateNutrient={
+              updateNutrient
+            }
+            onAddClassifier={
+              addClassifier
+            }
+            onRenameClassifier={
+              renameClassifier
+            }
+            onDeleteClassifier={
+              deleteClassifier
+            }
           />
         )}
 
-        {activeTab === "requirements" && (
+        {activeTab ===
+          "requirements" && (
           <RequirementsTab
             requirement={requirement}
-            requirementProfiles={requirementProfiles}
-            activeRequirementIndex={activeRequirementIndex}
-            onSelectRequirement={selectRequirement}
-            onUpdateRequirement={updateRequirement}
-            onCreateRequirement={createRequirement}
-            onDuplicateRequirement={duplicateRequirement}
-            onDeleteRequirement={deleteRequirement}
-            onResetRequirement={resetRequirement}
+            requirementProfiles={
+              requirementProfiles
+            }
+            activeRequirementIndex={
+              activeRequirementIndex
+            }
+            classifierKeys={
+              classifiers.keys
+            }
+            classifierLabels={
+              classifiers.labels
+            }
+            onSelectRequirement={
+              selectRequirement
+            }
+            onUpdateRequirement={
+              updateRequirement
+            }
+            onCreateRequirement={
+              createRequirement
+            }
+            onDuplicateRequirement={
+              duplicateRequirement
+            }
+            onDeleteRequirement={
+              deleteRequirement
+            }
+            onRecoverProfiles={
+              recoverProfilesFromSavedFormulas
+            }
+            onRestoreProfilesBackup={
+              restoreLatestProfilesBackup
+            }
+            onExportProfiles={
+              exportProfiles
+            }
+            onImportProfiles={
+              importProfiles
+            }
           />
         )}
 
-        {activeTab === "results" && (
+        {activeTab ===
+          "results" && (
           <ResultsTab
             result={result}
             requirement={requirement}
-            onSaveFormula={saveCurrentFormula}
-            savedFormulas={savedFormulas}
-            comparisonFormulaId={comparisonFormulaId}
-            comparisonFormula={comparisonFormula}
-            onSelectComparisonFormula={setComparisonFormulaId}
+            onSaveFormula={
+              saveCurrentFormula
+            }
+            savedFormulas={
+              savedFormulas
+            }
+            comparisonFormulaId={
+              comparisonFormulaId
+            }
+            comparisonFormula={
+              comparisonFormula
+            }
+            onSelectComparisonFormula={
+              setComparisonFormulaId
+            }
           />
         )}
 
         {activeTab === "saved" && (
-          <section className="card" style={{ maxWidth: "100%" }}>
-            <h2>💾 Fórmulas guardadas</h2>
+          <section
+            className="card"
+            style={{
+              maxWidth: "100%"
+            }}
+          >
+            <h2>
+              💾 Fórmulas guardadas
+            </h2>
 
             <input
               className="price-input"
               type="text"
               placeholder="Buscar fórmula..."
               value={savedSearch}
-              onChange={(event) => setSavedSearch(event.target.value)}
+              onChange={(event) =>
+                setSavedSearch(
+                  event.target.value
+                )
+              }
               style={{
                 width: "100%",
                 marginBottom: 14
               }}
             />
 
-            {filteredSavedFormulas.length === 0 ? (
-              <div className="note">No hay fórmulas guardadas para mostrar.</div>
+            {filteredSavedFormulas.length ===
+            0 ? (
+              <div className="note">
+                No hay fórmulas guardadas
+                para mostrar.
+              </div>
             ) : (
-              filteredSavedFormulas.map((formula) => {
-                const multiplier = getMultiplierNumber(formula);
-                const costingData = calculateSavedCosting(formula, multiplier);
-                const savedRequirement = getSavedFormulaRequirement(formula);
+              filteredSavedFormulas.map(
+                (formula) => {
+                  const multiplier =
+                    getMultiplierNumber(
+                      formula
+                    );
 
-                return (
-                  <details
-                    key={formula.id}
-                    className="card"
-                    style={{
-                      marginTop: 16,
-                      border: "1px solid #ddd",
-                      padding: 14,
-                      maxWidth: "100%",
-                      overflowX: "hidden"
-                    }}
-                  >
-                    <summary
+                  const costingData =
+                    calculateSavedCosting(
+                      formula,
+                      multiplier
+                    );
+
+                  const savedRequirement =
+                    getSavedFormulaRequirement(
+                      formula
+                    );
+
+                  return (
+                    <details
+                      key={formula.id}
+                      className="card"
                       style={{
-                        cursor: "pointer",
-                        fontWeight: 800,
-                        wordBreak: "break-word"
+                        marginTop: 16,
+                        border:
+                          "1px solid #ddd",
+                        padding: 14,
+                        maxWidth: "100%",
+                        overflowX:
+                          "hidden"
                       }}
                     >
-                      {formula.name}
-                    </summary>
+                      <summary
+                        style={{
+                          cursor:
+                            "pointer",
+                          fontWeight: 800,
+                          wordBreak:
+                            "break-word"
+                        }}
+                      >
+                        {formula.name}
+                      </summary>
 
-                    <div
-                      className="note"
-                      style={{ marginTop: 12, wordBreak: "break-word" }}
-                    >
-                      Perfil: {formula.requirementName}
-                      <br />
-                      Guardada: {new Date(formula.createdAt).toLocaleDateString()}
-                    </div>
+                      <div
+                        className="note"
+                        style={{
+                          marginTop: 12,
+                          wordBreak:
+                            "break-word"
+                        }}
+                      >
+                        Perfil:{" "}
+                        {
+                          formula.requirementName
+                        }
+                        <br />
+                        Guardada:{" "}
+                        {new Date(
+                          formula.createdAt
+                        ).toLocaleDateString()}
+                      </div>
 
-                    <label
-                      style={{
-                        display: "block",
-                        marginTop: 12,
-                        fontWeight: 700
-                      }}
-                    >
-                      Multiplicador
-                    </label>
+                      <label
+                        style={{
+                          display:
+                            "block",
+                          marginTop: 12,
+                          fontWeight: 700
+                        }}
+                      >
+                        Multiplicador
+                      </label>
 
-                    <input
-                      className="price-input"
-                      type="text"
-                      inputMode="decimal"
-                      value={getMultiplierText(formula)}
-                      onChange={(event) =>
-                        updateFormulaMultiplierText(
-                          formula.id,
-                          event.target.value
-                        )
-                      }
-                      onBlur={() => finishMultiplierEdit(formula)}
-                      onFocus={(event) => event.currentTarget.select()}
-                      style={{
-                        width: 110,
-                        marginTop: 8
-                      }}
-                    />
+                      <input
+                        className="price-input"
+                        type="text"
+                        inputMode="decimal"
+                        value={getMultiplierText(
+                          formula
+                        )}
+                        onChange={(
+                          event
+                        ) =>
+                          updateFormulaMultiplierText(
+                            formula.id,
+                            event.target
+                              .value
+                          )
+                        }
+                        onBlur={() =>
+                          finishMultiplierEdit(
+                            formula
+                          )
+                        }
+                        onFocus={(
+                          event
+                        ) =>
+                          event.currentTarget.select()
+                        }
+                        style={{
+                          width: 110,
+                          marginTop: 8
+                        }}
+                      />
 
-                    <div className="note" style={{ marginTop: 10 }}>
-                      Total mezcla: <strong>{formatKg(costingData.totalKg)} kg</strong>
-                      <br />
-                      Costo fórmula:{" "}
-                      <strong>S/ {formatMoney(costingData.totalFormulaCost)}</strong>
-                      <br />
-                      Costo real aprox:{" "}
-                      <strong>S/ {formatMoney(costingData.totalRealCost)}</strong>
-                      <br />
-                      Costo real kg:{" "}
-                      <strong>
-                        S/ {formatMoney(costingData.costWithProductionPerKg)}
-                      </strong>
-                      <br />
-                      Costo real saco 50 kg:{" "}
-                      <strong>S/ {formatMoney(costingData.realCostPer50Kg)}</strong>
-                      <br />
-                      Venta sugerida saco:{" "}
-                      <strong>S/ {formatMoney(costingData.salePer50Kg)}</strong>
-                    </div>
+                      <div
+                        className="note"
+                        style={{
+                          marginTop: 10
+                        }}
+                      >
+                        Total mezcla:{" "}
+                        <strong>
+                          {formatKg(
+                            costingData.totalKg
+                          )}{" "}
+                          kg
+                        </strong>
+                        <br />
 
-                    <h3 style={{ marginTop: 16 }}>🌽 Ingredientes</h3>
+                        Costo fórmula:{" "}
+                        <strong>
+                          S/{" "}
+                          {formatMoney(
+                            costingData.totalFormulaCost
+                          )}
+                        </strong>
+                        <br />
 
-                    <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                      {formula.result.ingredients.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr auto",
-                            gap: 10,
-                            alignItems: "center",
-                            padding: "10px 0",
-                            borderBottom: "1px solid #e5ece7"
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              minWidth: 0,
-                              wordBreak: "break-word"
-                            }}
-                          >
-                            {item.name}
-                          </div>
+                        Costo real aprox:{" "}
+                        <strong>
+                          S/{" "}
+                          {formatMoney(
+                            costingData.totalRealCost
+                          )}
+                        </strong>
+                        <br />
 
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                              textAlign: "right"
-                            }}
-                          >
-                            {formatKg(item.amountKg100 * multiplier)} kg
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        Costo real kg:{" "}
+                        <strong>
+                          S/{" "}
+                          {formatMoney(
+                            costingData.costWithProductionPerKg
+                          )}
+                        </strong>
+                        <br />
 
-                    <h3 style={{ marginTop: 16 }}>
-                      🧪 Nutrientes obtenidos VS requerimiento
-                    </h3>
+                        Costo real saco 50
+                        kg:{" "}
+                        <strong>
+                          S/{" "}
+                          {formatMoney(
+                            costingData.realCostPer50Kg
+                          )}
+                        </strong>
+                        <br />
 
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Nutriente</th>
-                            <th>Mín</th>
-                            <th>Obtenido</th>
-                            <th>Máx</th>
-                            <th>Estado</th>
-                          </tr>
-                        </thead>
+                        Venta sugerida
+                        saco:{" "}
+                        <strong>
+                          S/{" "}
+                          {formatMoney(
+                            costingData.salePer50Kg
+                          )}
+                        </strong>
+                      </div>
 
-                        <tbody>
-                          {nutrientKeys.map((key) => {
-                            const obtained = Number(formula.result.nutrients[key] || 0);
-                            const min = Number(savedRequirement[key] || 0);
-                            const max = getRequirementMaxValue(savedRequirement, key);
-                            const suffix = nutrientSuffix(key);
-                            const status = getNutrientStatus(obtained, min, max);
+                      <h3
+                        style={{
+                          marginTop: 16
+                        }}
+                      >
+                        🌽 Ingredientes
+                      </h3>
 
-                            return (
-                              <tr key={key}>
-                                <td>{nutrientLabels[key]}</td>
-                                <td>
-                                  {formatNutrient(min)}
-                                  {suffix}
-                                </td>
-                                <td>
-                                  <strong>
-                                    {formatNutrient(obtained)}
-                                    {suffix}
-                                  </strong>
-                                </td>
-                                <td>
-                                  {typeof max === "number"
-                                    ? `${formatNutrient(max)}${suffix}`
-                                    : "Sin máx"}
-                                </td>
-                                <td>
-                                  <strong>{status}</strong>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: "grid",
+                          gap: 8
+                        }}
+                      >
+                        {formula.result.ingredients.map(
+                          (item) => (
+                            <div
+                              key={
+                                item.id
+                              }
+                              style={{
+                                display:
+                                  "grid",
+                                gridTemplateColumns:
+                                  "1fr auto",
+                                gap: 10,
+                                alignItems:
+                                  "center",
+                                padding:
+                                  "10px 0",
+                                borderBottom:
+                                  "1px solid #e5ece7"
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  minWidth: 0,
+                                  wordBreak:
+                                    "break-word"
+                                }}
+                              >
+                                {
+                                  item.name
+                                }
+                              </div>
 
-                    <button
-                      className="action"
-                      type="button"
-                      onClick={() => copySavedFormula(formula)}
-                    >
-                      📋 Copiar fórmula multiplicada
-                    </button>
+                              <div
+                                style={{
+                                  fontWeight: 700,
+                                  whiteSpace:
+                                    "nowrap",
+                                  textAlign:
+                                    "right"
+                                }}
+                              >
+                                {formatKg(
+                                  item.amountKg100 *
+                                    multiplier
+                                )}{" "}
+                                kg
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
 
-                    <button
-                      className="action secondary"
-                      type="button"
-                      onClick={() => viewSavedFormula(formula)}
-                    >
-                      👁️ Ver fórmula guardada
-                    </button>
+                      <h3
+                        style={{
+                          marginTop: 16
+                        }}
+                      >
+                        🧪 Nutrientes
+                        obtenidos VS
+                        requerimiento
+                      </h3>
 
-                    <button
-                      className="action secondary"
-                      type="button"
-                      onClick={() => compareWithSavedFormula(formula)}
-                    >
-                      ⚖️ Comparar con resultado actual
-                    </button>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>
+                                Nutriente
+                              </th>
+                              <th>Mín</th>
+                              <th>
+                                Obtenido
+                              </th>
+                              <th>Máx</th>
+                              <th>
+                                Estado
+                              </th>
+                            </tr>
+                          </thead>
 
-                    <button
-                      className="action secondary"
-                      type="button"
-                      onClick={() => renameSavedFormula(formula)}
-                    >
-                      ✏️ Cambiar nombre
-                    </button>
+                          <tbody>
+                            {nutrientKeys.map(
+                              (key) => {
+                                const obtained =
+                                  Number(
+                                    formula
+                                      .result
+                                      .nutrients[
+                                      key
+                                    ] || 0
+                                  );
 
-                    <button
-                      className="action secondary"
-                      type="button"
-                      onClick={() => duplicateSavedFormula(formula)}
-                    >
-                      📄 Duplicar fórmula
-                    </button>
+                                const min =
+                                  Number(
+                                    savedRequirement[
+                                      key
+                                    ] || 0
+                                  );
 
-                    <button
-                      className="action secondary"
-                      type="button"
-                      onClick={() => deleteSavedFormula(formula.id)}
-                    >
-                      Eliminar fórmula
-                    </button>
-                  </details>
-                );
-              })
+                                const max =
+                                  getRequirementMaxValue(
+                                    savedRequirement,
+                                    key
+                                  );
+
+                                const suffix =
+                                  nutrientSuffix(
+                                    key
+                                  );
+
+                                const status =
+                                  getNutrientStatus(
+                                    obtained,
+                                    min,
+                                    max
+                                  );
+
+                                return (
+                                  <tr
+                                    key={
+                                      key
+                                    }
+                                  >
+                                    <td>
+                                      {
+                                        nutrientLabels[
+                                          key
+                                        ]
+                                      }
+                                    </td>
+
+                                    <td>
+                                      {formatNutrient(
+                                        min
+                                      )}
+                                      {
+                                        suffix
+                                      }
+                                    </td>
+
+                                    <td>
+                                      <strong>
+                                        {formatNutrient(
+                                          obtained
+                                        )}
+                                        {
+                                          suffix
+                                        }
+                                      </strong>
+                                    </td>
+
+                                    <td>
+                                      {typeof max ===
+                                      "number"
+                                        ? `${formatNutrient(
+                                            max
+                                          )}${suffix}`
+                                        : "Sin máx"}
+                                    </td>
+
+                                    <td>
+                                      <strong>
+                                        {
+                                          status
+                                        }
+                                      </strong>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <button
+                        className="action"
+                        type="button"
+                        onClick={() =>
+                          copySavedFormula(
+                            formula
+                          )
+                        }
+                      >
+                        📋 Copiar fórmula
+                        multiplicada
+                      </button>
+
+                      <button
+                        className="action secondary"
+                        type="button"
+                        onClick={() =>
+                          viewSavedFormula(
+                            formula
+                          )
+                        }
+                      >
+                        👁️ Ver fórmula
+                        guardada
+                      </button>
+
+                      <button
+                        className="action secondary"
+                        type="button"
+                        onClick={() =>
+                          compareWithSavedFormula(
+                            formula
+                          )
+                        }
+                      >
+                        ⚖️ Comparar con
+                        resultado actual
+                      </button>
+
+                      <button
+                        className="action secondary"
+                        type="button"
+                        onClick={() =>
+                          renameSavedFormula(
+                            formula
+                          )
+                        }
+                      >
+                        ✏️ Cambiar nombre
+                      </button>
+
+                      <button
+                        className="action secondary"
+                        type="button"
+                        onClick={() =>
+                          duplicateSavedFormula(
+                            formula
+                          )
+                        }
+                      >
+                        📄 Duplicar fórmula
+                      </button>
+
+                      <button
+                        className="action secondary"
+                        type="button"
+                        onClick={() =>
+                          deleteSavedFormula(
+                            formula.id
+                          )
+                        }
+                      >
+                        Eliminar fórmula
+                      </button>
+                    </details>
+                  );
+                }
+              )
             )}
           </section>
         )}
