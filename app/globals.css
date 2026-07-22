@@ -321,3 +321,34 @@ tbody tr:last-child td {
     width: 150px;
   }
 }
+/* ===== Tabla Fórmula obtenida ===== */
+
+.formula-table {
+  width: auto;
+  min-width: 430px;
+  table-layout: auto;
+}
+
+.formula-table th,
+.formula-table td {
+  white-space: nowrap;
+}
+
+.formula-table th:first-child,
+.formula-table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.formula-table th:nth-child(2),
+.formula-table td:nth-child(2) {
+  width: 80px;
+  text-align: right;
+}
+
+.formula-table th:nth-child(3),
+.formula-table td:nth-child(3) {
+  width: 90px;
+  text-align: right;
+  }
