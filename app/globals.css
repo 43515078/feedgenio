@@ -296,7 +296,7 @@ tbody tr:last-child td {
 
 .formula-result-table th:nth-child(1),
 .formula-result-table td:nth-child(1) {
-  width: 58%;
+  width: 50%;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -310,7 +310,7 @@ tbody tr:last-child td {
 
 .formula-result-table th:nth-child(3),
 .formula-result-table td:nth-child(3) {
-  width: 24%;
+  width: 32%;
   text-align: right;
   white-space: nowrap;
 }
