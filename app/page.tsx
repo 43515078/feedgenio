@@ -876,6 +876,7 @@ export default function HomePage() {
             loading={loading}
             requirementProfiles={requirementProfiles}
             activeRequirementIndex={activeRequirementIndex}
+            activeSpecies={requirementProfiles[activeRequirementIndex]?.species ?? null}
             onSelectRequirement={selectRequirement}
             onToggle={toggleIngredient}
             onUpdate={updateIngredient}
