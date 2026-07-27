@@ -289,12 +289,6 @@ export function normalizeRequirement(
         ? Boolean(currentRange.enabled)
         : undefined;
 
-    const enabled =
-  explicitEnabled ??
-  hasNestedMinimum ??
-  hasLegacyMinimum ??
-  (minimum > 0 || fallbackRange.enabled);
-
     normalizedNutrients[key] = {
       min: minimum,
       max: maximum,
