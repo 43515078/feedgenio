@@ -264,7 +264,10 @@ function buildFormulaAlerts(
     });
   }
 
-  if (dcp <= 0.001 && requirement.availablePhosphorus > 0.32) {
+  if (
+  dcp <= 0.001 &&
+  (requirement.nutrients.availablePhosphorus?.min ?? 0) > 0.32
+) {
     alerts.push({
       level: "info",
       message:
