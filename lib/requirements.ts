@@ -290,11 +290,10 @@ export function normalizeRequirement(
         : undefined;
 
     const enabled =
-      explicitEnabled ??
-      hasNestedMinimum ??
-      hasLegacyMinimum ??
-      minimum > 0 ??
-      fallbackRange.enabled;
+  explicitEnabled ??
+  hasNestedMinimum ??
+  hasLegacyMinimum ??
+  (minimum > 0 || fallbackRange.enabled);
 
     normalizedNutrients[key] = {
       min: minimum,
