@@ -10,21 +10,13 @@ import {
   defaultIngredients,
   nutrientKeys,
   speciesKeys,
-  speciesLabels,
   type Ingredient,
   type IngredientLimit,
   type NutrientKey,
   type SpeciesKey
 } from "@/lib/ingredients";
 
-import {
-  baseRequirementProfiles,
-  createBaseRequirement,
-  defaultRequirement,
-  normalizeRequirement as normalizeRequirementData,
-  updateRequirementNutrient,
-  type Requirement
-} from "@/lib/requirements";
+import { defaultRequirement, type Requirement } from "@/lib/requirements";
 
 import type { FormulaResult } from "@/lib/solver";
 
@@ -55,29 +47,12 @@ type SavedFormula = {
   costing?: SavedCosting;
 };
 
-type SavedFormulaGroupKey =
-  | "pollos"
-  | "pavos"
-  | "cerdos"
-  | "gallinas"
-  | "codornices"
-  | "cuyes"
-  | "otros";
-
-type SavedFormulaGroup = {
-  key: SavedFormulaGroupKey;
-  label: string;
-  icon: string;
-  formulas: SavedFormula[];
-};
-
 type TabType = "formular" | "matrix" | "requirements" | "results" | "saved";
 
 const INGREDIENTS_STORAGE_KEY = "feedgenio_ingredients_v1";
 const REQUIREMENTS_STORAGE_KEY = "feedgenio_requirements_v2";
 const ACTIVE_REQUIREMENT_INDEX_KEY = "feedgenio_active_requirement_index_v2";
 const SAVED_FORMULAS_STORAGE_KEY = "feedgenio_saved_formulas_v1";
-const REQUIREMENTS_BACKUP_STORAGE_KEY = "feedgenio_requirements_backup_v2";
 
 function numberOrDefault(value: unknown, fallback: number) {
   const numberValue = Number(value);
@@ -85,15 +60,52 @@ function numberOrDefault(value: unknown, fallback: number) {
 }
 
 function createEmptyRequirement(name: string): Requirement {
-  let requirement = createBaseRequirement(name, defaultRequirement.species);
-  for (const key of nutrientKeys) {
-    requirement = updateRequirementNutrient(requirement, key, {
-      min: 0,
-      max: undefined,
-      enabled: false
-    });
-  }
-  return requirement;
+  return {
+    name,
+    species: defaultRequirement.species,
+    energy: 0,
+    energyMax: 0,
+    protein: 0,
+    proteinMax: 0,
+    lysine: 0,
+    lysineMax: 0,
+    methionine: 0,
+    methionineMax: 0,
+    metCys: 0,
+    metCysMax: 0,
+    threonine: 0,
+    threonineMax: 0,
+    tryptophan: 0,
+    tryptophanMax: 0,
+    arginine: 0,
+    arginineMax: 0,
+    glycineSerine: 0,
+    glycineSerineMax: 0,
+    histidine: 0,
+    histidineMax: 0,
+    isoleucine: 0,
+    isoleucineMax: 0,
+    leucine: 0,
+    leucineMax: 0,
+    phenylalanine: 0,
+    phenylalanineMax: 0,
+    tyrosine: 0,
+    tyrosineMax: 0,
+    phenylalanineTyrosine: 0,
+    phenylalanineTyrosineMax: 0,
+    valine: 0,
+    valineMax: 0,
+    calcium: 0,
+    calciumMax: 0,
+    availablePhosphorus: 0,
+    availablePhosphorusMax: 0,
+    sodium: 0,
+    sodiumMax: 0,
+    chlorine: 0,
+    chlorineMax: 0,
+    linoleicAcid: 0,
+    linoleicAcidMax: 0
+  };
 }
 
 function getInitialIngredients(): EditableIngredient[] {
@@ -176,71 +188,12 @@ function normalizeSavedIngredients(
   });
 }
 
-function cloneRequirementProfile(profile: Requirement): Requirement {
-  return normalizeRequirementData(
-    JSON.parse(JSON.stringify(profile)) as Partial<Requirement>
-  );
-}
-
-/**
- * Repara perfiles guardados durante la migración defectuosa.
- *
- * Algunas copias quedaron con `nutrients` repetido desde el perfil por defecto,
- * mientras los campos antiguos (`energy`, `protein`, `energyMax`, etc.) todavía
- * conservaban los valores reales de cada perfil. Cuando hay contradicción,
- * se eliminan solamente los nutrientes anidados dañados y se reconstruyen desde
- * esos campos antiguos. Los perfiles modernos coherentes se conservan intactos.
- */
-function normalizeStoredRequirement(item: Partial<Requirement>): Requirement {
-  const source = item as Partial<Requirement> & Record<string, unknown>;
-  const nested =
-    source.nutrients && typeof source.nutrients === "object"
-      ? source.nutrients
-      : undefined;
-
-  let hasLegacyNestedConflict = false;
-
-  if (nested) {
-    for (const key of nutrientKeys) {
-      const legacyMinimum = source[key];
-      const legacyMaximum = source[`${key}Max`];
-      const nestedRange = nested[key];
-
-      if (
-        typeof legacyMinimum === "number" &&
-        Number(nestedRange?.min) !== Number(legacyMinimum)
-      ) {
-        hasLegacyNestedConflict = true;
-        break;
-      }
-
-      const normalizedNestedMaximum =
-        typeof nestedRange?.max === "number" && nestedRange.max > 0
-          ? nestedRange.max
-          : undefined;
-      const normalizedLegacyMaximum =
-        typeof legacyMaximum === "number" && legacyMaximum > 0
-          ? legacyMaximum
-          : undefined;
-
-      if (normalizedNestedMaximum !== normalizedLegacyMaximum) {
-        hasLegacyNestedConflict = true;
-        break;
-      }
-    }
-  }
-
-  if (hasLegacyNestedConflict) {
-    const repairedSource = { ...source };
-    delete repairedSource.nutrients;
-    return normalizeRequirementData(repairedSource);
-  }
-
-  return normalizeRequirementData(source);
-}
-
-function createInitialRequirementProfiles(): Requirement[] {
-  return baseRequirementProfiles.map(cloneRequirementProfile);
+function normalizeRequirement(item: Partial<Requirement>): Requirement {
+  return {
+    ...defaultRequirement,
+    ...item,
+    name: String(item.name || defaultRequirement.name)
+  };
 }
 
 function normalizeCosting(costing: Partial<SavedCosting> | undefined): SavedCosting {
@@ -259,7 +212,6 @@ function createEmptyFormulaResult(message: string): FormulaResult {
     costPer50Kg: 0,
     ingredients: [],
     nutrients: createEmptyNutrients(),
-    derivedMetrics: {} as FormulaResult["derivedMetrics"],
     message
   };
 }
@@ -354,73 +306,16 @@ function prepareIngredientsForRequirement(
     });
 }
 
-const SAVED_FORMULA_GROUPS: Array<{
-  key: SavedFormulaGroupKey;
-  label: string;
-  icon: string;
-}> = [
-  { key: "pollos", label: "Pollos", icon: "🐔" },
-  { key: "pavos", label: "Pavos", icon: "🦃" },
-  { key: "cerdos", label: "Cerdos", icon: "🐷" },
-  { key: "gallinas", label: "Gallinas", icon: "🥚" },
-  { key: "codornices", label: "Codornices", icon: "🐦" },
-  { key: "cuyes", label: "Cuyes", icon: "🐹" },
-  { key: "otros", label: "Otros", icon: "📦" }
-];
-
-function getSavedFormulaGroup(formula: SavedFormula): SavedFormulaGroupKey {
-  const text = `${formula.name} ${formula.requirementName}`.toLowerCase();
-
-  if (text.includes("pavo") || text.includes("turkey")) return "pavos";
-  if (text.includes("codorniz") || text.includes("quail")) return "codornices";
-  if (text.includes("cuy") || text.includes("guinea pig")) return "cuyes";
-  if (text.includes("cerdo") || text.includes("porcino") || text.includes("pig")) {
-    return "cerdos";
-  }
-  if (
-    text.includes("ponedora") ||
-    text.includes("postura") ||
-    text.includes("gallina") ||
-    text.includes("hyline") ||
-    text.includes("hy-line") ||
-    text.includes("dekalb") ||
-    text.includes("layer")
-  ) {
-    return "gallinas";
-  }
-  if (
-    text.includes("cobb") ||
-    text.includes("pollo") ||
-    text.includes("broiler")
-  ) {
-    return "pollos";
-  }
-
-  return "otros";
-}
-
-function groupSavedFormulas(formulas: SavedFormula[]): SavedFormulaGroup[] {
-  return SAVED_FORMULA_GROUPS.map((group) => ({
-    ...group,
-    formulas: formulas.filter(
-      (formula) => getSavedFormulaGroup(formula) === group.key
-    )
-  }));
-}
-
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>("formular");
   const [ingredients, setIngredients] =
     useState<EditableIngredient[]>(getInitialIngredients());
   const [requirementProfiles, setRequirementProfiles] = useState<Requirement[]>(
-    createInitialRequirementProfiles
+    [defaultRequirement]
   );
   const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
-  const [comparisonFormulaId, setComparisonFormulaId] = useState("");
   const [savedSearch, setSavedSearch] = useState("");
-  const [expandedSavedGroup, setExpandedSavedGroup] =
-    useState<SavedFormulaGroupKey | null>(null);
   const [expandedFormulaId, setExpandedFormulaId] = useState<string | null>(null);
   const [multiplierDrafts, setMultiplierDrafts] = useState<Record<string, string>>(
     {}
@@ -449,11 +344,6 @@ export default function HomePage() {
       );
     });
   }, [savedFormulas, savedSearch]);
-
-  const groupedSavedFormulas = useMemo(
-    () => groupSavedFormulas(filteredSavedFormulas),
-    [filteredSavedFormulas]
-  );
 
   async function calculateFormula(
     currentIngredients: EditableIngredient[],
@@ -488,7 +378,7 @@ export default function HomePage() {
 
   useEffect(() => {
     let currentIngredients = getInitialIngredients();
-    let currentRequirements = createInitialRequirementProfiles();
+    let currentRequirements = [defaultRequirement];
     let currentIndex = 0;
 
     const savedIngredients = window.localStorage.getItem(INGREDIENTS_STORAGE_KEY);
@@ -508,7 +398,7 @@ export default function HomePage() {
     if (savedRequirements) {
       try {
         const parsed = JSON.parse(savedRequirements) as Partial<Requirement>[];
-        currentRequirements = parsed.map(normalizeStoredRequirement);
+        currentRequirements = parsed.map(normalizeRequirement);
       } catch {}
     }
 
@@ -560,17 +450,6 @@ export default function HomePage() {
       INGREDIENTS_STORAGE_KEY,
       JSON.stringify(updatedIngredients)
     );
-
-    const previousProfiles = window.localStorage.getItem(
-      REQUIREMENTS_STORAGE_KEY
-    );
-
-    if (previousProfiles) {
-      window.localStorage.setItem(
-        REQUIREMENTS_BACKUP_STORAGE_KEY,
-        previousProfiles
-      );
-    }
 
     window.localStorage.setItem(
       REQUIREMENTS_STORAGE_KEY,
@@ -725,14 +604,7 @@ export default function HomePage() {
     saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
   }
 
-  function updateRequirement(
-    field: keyof Requirement,
-    value:
-      | string
-      | number
-      | Requirement["nutrients"]
-      | Requirement["derivedRequirements"]
-  ) {
+  function updateRequirement(field: keyof Requirement, value: string | number) {
     const updatedProfiles = requirementProfiles.map((profile, index) =>
       index === activeRequirementIndex ? { ...profile, [field]: value } : profile
     );
@@ -757,7 +629,7 @@ export default function HomePage() {
 
   function duplicateRequirement() {
     const duplicated: Requirement = {
-      ...cloneRequirementProfile(requirement),
+      ...requirement,
       name: `${requirement.name} copia`
     };
 
@@ -785,24 +657,6 @@ export default function HomePage() {
     );
 
     saveAll(updatedIngredients, requirementProfiles, activeRequirementIndex);
-  }
-
-  function addClassifier() {
-    window.alert(
-      "Los clasificadores disponibles están definidos en lib/ingredients.ts. Para agregar uno nuevo de forma permanente, primero debe añadirse allí."
-    );
-  }
-
-  function renameClassifier(species: SpeciesKey) {
-    window.alert(
-      `El clasificador ${speciesLabels[species] || species} se renombra desde lib/ingredients.ts para mantener consistencia en toda la aplicación.`
-    );
-  }
-
-  function deleteClassifier(species: SpeciesKey) {
-    window.alert(
-      `El clasificador ${speciesLabels[species] || species} no puede borrarse solo desde esta pantalla porque forma parte del tipo SpeciesKey.`
-    );
   }
 
   function addIngredient() {
@@ -846,85 +700,7 @@ export default function HomePage() {
 
     if (!confirmReset) return;
 
-    saveAll(ingredients, createInitialRequirementProfiles(), 0);
-  }
-
-  function recoverProfilesFromSavedFormulas() {
-    const recoveredProfiles = savedFormulas
-      .map((formula) => formula.requirementSnapshot)
-      .filter((profile): profile is Requirement => Boolean(profile))
-      .map((profile) => normalizeStoredRequirement(profile));
-
-    if (recoveredProfiles.length === 0) {
-      window.alert(
-        "No se encontraron perfiles de requerimientos dentro de las fórmulas guardadas."
-      );
-      return;
-    }
-
-    const uniqueProfiles = recoveredProfiles.filter((profile, index, all) => {
-      const signature = JSON.stringify(profile);
-      return all.findIndex((candidate) => JSON.stringify(candidate) === signature) === index;
-    });
-
-    saveAll(ingredients, uniqueProfiles, 0);
-    window.alert(`Se recuperaron ${uniqueProfiles.length} perfil(es).`);
-  }
-
-  function restoreProfilesBackup() {
-    const backup = window.localStorage.getItem(REQUIREMENTS_BACKUP_STORAGE_KEY);
-
-    if (!backup) {
-      window.alert("Todavía no existe una copia automática de los perfiles.");
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(backup) as Partial<Requirement>[];
-      const restoredProfiles = parsed.map((profile) => normalizeStoredRequirement(profile));
-
-      if (restoredProfiles.length === 0) {
-        throw new Error("Copia vacía");
-      }
-
-      saveAll(ingredients, restoredProfiles, 0);
-      window.alert("Se restauró la última copia automática.");
-    } catch {
-      window.alert("La copia automática no es válida y no pudo restaurarse.");
-    }
-  }
-
-  function exportProfiles() {
-    const content = JSON.stringify(requirementProfiles, null, 2);
-    const blob = new Blob([content], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-
-    anchor.href = url;
-    anchor.download = `feedgenio-perfiles-${new Date()
-      .toISOString()
-      .slice(0, 10)}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  async function importProfiles(file: File) {
-    try {
-      const content = await file.text();
-      const parsed = JSON.parse(content) as Partial<Requirement>[];
-
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        throw new Error("Archivo sin perfiles");
-      }
-
-      const importedProfiles = parsed.map((profile) => normalizeStoredRequirement(profile));
-      saveAll(ingredients, importedProfiles, 0);
-      window.alert(`Se importaron ${importedProfiles.length} perfil(es).`);
-    } catch {
-      window.alert("El archivo no contiene perfiles válidos de FeedGenio.");
-    }
+    saveAll(ingredients, [defaultRequirement], 0);
   }
 
   function saveCurrentFormula(costing?: SavedCosting) {
@@ -947,8 +723,8 @@ export default function HomePage() {
       multiplier: 1,
       requirementName: requirement.name,
       result,
-      ingredientsSnapshot: JSON.parse(JSON.stringify(ingredients)),
-      requirementSnapshot: cloneRequirementProfile(requirement),
+      ingredientsSnapshot: ingredients,
+      requirementSnapshot: requirement,
       costing: normalizeCosting(costing)
     };
 
@@ -1136,7 +912,6 @@ export default function HomePage() {
             loading={loading}
             requirementProfiles={requirementProfiles}
             activeRequirementIndex={activeRequirementIndex}
-            activeSpecies={getSpeciesFromRequirement(requirement.name)}
             onSelectRequirement={selectRequirement}
             onToggle={toggleIngredient}
             onUpdate={updateIngredient}
@@ -1151,8 +926,6 @@ export default function HomePage() {
           <MatrixTab
             ingredients={ingredients}
             nutrientKeys={nutrientKeys}
-            classifierKeys={speciesKeys}
-            classifierLabels={speciesLabels}
             onAddIngredient={addIngredient}
             onDeleteIngredient={deleteIngredient}
             onMoveIngredient={moveIngredient}
@@ -1160,9 +933,6 @@ export default function HomePage() {
             onUpdateSpecies={updateIngredientSpecies}
             onUpdateLimit={updateIngredientLimit}
             onUpdateNutrient={updateNutrient}
-            onAddClassifier={addClassifier}
-            onRenameClassifier={renameClassifier}
-            onDeleteClassifier={deleteClassifier}
           />
         )}
 
@@ -1171,17 +941,12 @@ export default function HomePage() {
             requirement={requirement}
             requirementProfiles={requirementProfiles}
             activeRequirementIndex={activeRequirementIndex}
-            classifierKeys={speciesKeys}
-            classifierLabels={speciesLabels}
             onSelectRequirement={selectRequirement}
             onUpdateRequirement={updateRequirement}
             onCreateRequirement={createRequirement}
             onDuplicateRequirement={duplicateRequirement}
             onDeleteRequirement={deleteRequirement}
-            onRecoverProfiles={recoverProfilesFromSavedFormulas}
-            onRestoreProfilesBackup={restoreProfilesBackup}
-            onExportProfiles={exportProfiles}
-            onImportProfiles={importProfiles}
+            onResetRequirement={resetRequirement}
           />
         )}
 
@@ -1190,293 +955,223 @@ export default function HomePage() {
             result={result}
             requirement={requirement}
             onSaveFormula={saveCurrentFormula}
-            savedFormulas={savedFormulas}
-            comparisonFormulaId={comparisonFormulaId}
-            comparisonFormula={
-              savedFormulas.find((formula) => formula.id === comparisonFormulaId) ??
-              null
-            }
-            onSelectComparisonFormula={setComparisonFormulaId}
           />
         )}
 
         {activeTab === "saved" && (
-          <section className="saved-section">
-            <div className="saved-heading">
-              <div>
-                <h2>💾 Fórmulas guardadas</h2>
-                <p>Organizadas por especie para encontrarlas sin hacer safari por la pantalla.</p>
-              </div>
-              <span className="saved-total-badge">{savedFormulas.length}</span>
+          <section className="card" style={{ maxWidth: "100%" }}>
+            <h2>💾 Fórmulas guardadas</h2>
+
+            <div className="note" style={{ marginBottom: 14 }}>
+              Toca una fórmula para desplegarla. Solo queda una abierta a la vez.
             </div>
 
             <input
-              className="saved-search-input"
+              className="price-input"
               type="text"
-              placeholder="Buscar por nombre o perfil..."
+              placeholder="Buscar fórmula..."
               value={savedSearch}
               onChange={(event) => setSavedSearch(event.target.value)}
+              style={{
+                width: "100%",
+                marginBottom: 14
+              }}
             />
 
             {filteredSavedFormulas.length === 0 ? (
-              <div className="saved-empty">
-                No hay fórmulas guardadas que coincidan con la búsqueda.
-              </div>
+              <div className="note">No hay fórmulas guardadas para mostrar.</div>
             ) : (
-              <div className="saved-groups">
-                {groupedSavedFormulas.map((group) => {
-                  const isGroupExpanded = expandedSavedGroup === group.key;
-                  const formulaCount = group.formulas.length;
-
-                  if (formulaCount === 0 && savedSearch.trim()) return null;
+              <div style={{ display: "grid", gap: 12 }}>
+                {filteredSavedFormulas.map((formula) => {
+                  const isExpanded = expandedFormulaId === formula.id;
+                  const multiplier = getMultiplierNumber(formula);
+                  const costingData = calculateSavedCosting(formula, multiplier);
 
                   return (
-                    <article
-                      key={group.key}
-                      className={`saved-group ${isGroupExpanded ? "is-open" : ""}`}
+                    <div
+                      key={formula.id}
+                      className="card"
+                      style={{
+                        border: "1px solid #ddd",
+                        padding: 14,
+                        maxWidth: "100%",
+                        overflowX: "hidden"
+                      }}
                     >
                       <button
-                        className="saved-group-toggle"
+                        className={`action ${isExpanded ? "" : "secondary"}`}
                         type="button"
-                        onClick={() => {
-                          setExpandedSavedGroup(
-                            isGroupExpanded ? null : group.key
-                          );
-                          setExpandedFormulaId(null);
+                        onClick={() =>
+                          setExpandedFormulaId(isExpanded ? null : formula.id)
+                        }
+                        style={{
+                          marginTop: 0,
+                          textAlign: "center",
+                          wordBreak: "break-word"
                         }}
-                        aria-expanded={isGroupExpanded}
                       >
-                        <span className="saved-group-icon">{group.icon}</span>
-
-                        <span className="saved-group-copy">
-                          <strong>Alimento {group.label}</strong>
-                          <small>
-                            {formulaCount} {formulaCount === 1 ? "fórmula" : "fórmulas"}
-                          </small>
-                        </span>
-
-                        <span className="saved-group-arrow">
-                          {isGroupExpanded ? "▾" : "▸"}
-                        </span>
+                        {isExpanded ? "📂" : "📁"} {formula.name}
                       </button>
 
-                      {isGroupExpanded && (
-                        <div className="saved-group-content">
-                          {formulaCount === 0 ? (
-                            <div className="saved-group-empty">
-                              Todavía no hay fórmulas en esta categoría.
-                            </div>
-                          ) : (
-                            group.formulas.map((formula) => {
-                              const isFormulaExpanded =
-                                expandedFormulaId === formula.id;
-                              const multiplier = getMultiplierNumber(formula);
-                              const costingData = calculateSavedCosting(
-                                formula,
-                                multiplier
-                              );
+                      {isExpanded && (
+                        <>
+                          <div
+                            className="note"
+                            style={{ marginTop: 12, wordBreak: "break-word" }}
+                          >
+                            Perfil: {formula.requirementName}
+                            <br />
+                            Guardada:{" "}
+                            {new Date(formula.createdAt).toLocaleDateString()}
+                          </div>
 
-                              return (
+                          <label
+                            style={{
+                              display: "block",
+                              marginTop: 12,
+                              fontWeight: 700
+                            }}
+                          >
+                            Multiplicador
+                          </label>
+
+                          <input
+                            className="price-input"
+                            type="text"
+                            inputMode="decimal"
+                            value={getMultiplierText(formula)}
+                            onChange={(event) =>
+                              updateFormulaMultiplierText(
+                                formula.id,
+                                event.target.value
+                              )
+                            }
+                            onBlur={() => finishMultiplierEdit(formula)}
+                            onFocus={(event) => event.currentTarget.select()}
+                            style={{
+                              width: 110,
+                              marginTop: 8
+                            }}
+                          />
+
+                          <div className="note" style={{ marginTop: 10 }}>
+                            Total mezcla:{" "}
+                            <strong>{formatKg(costingData.totalKg)} kg</strong>
+                            <br />
+                            Costo fórmula:{" "}
+                            <strong>
+                              S/ {formatMoney(costingData.totalFormulaCost, 2)}
+                            </strong>
+                            <br />
+                            Costo real aprox:{" "}
+                            <strong>
+                              S/ {formatMoney(costingData.totalRealCost, 2)}
+                            </strong>
+                            <br />
+                            Costo real kg:{" "}
+                            <strong>
+                              S/{" "}
+                              {formatMoney(
+                                costingData.costWithProductionPerKg,
+                                3
+                              )}
+                            </strong>
+                            <br />
+                            Costo real saco 50 kg:{" "}
+                            <strong>
+                              S/ {formatMoney(costingData.realCostPer50Kg, 2)}
+                            </strong>
+                            <br />
+                            Venta sugerida saco:{" "}
+                            <strong>
+                              S/ {formatMoney(costingData.salePer50Kg, 2)}
+                            </strong>
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: 14,
+                              display: "grid",
+                              gap: 8
+                            }}
+                          >
+                            {formula.result.ingredients.map((item) => (
+                              <div
+                                key={item.id}
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "1fr auto",
+                                  gap: 10,
+                                  alignItems: "center",
+                                  padding: "10px 0",
+                                  borderBottom: "1px solid #e5ece7"
+                                }}
+                              >
                                 <div
-                                  key={formula.id}
-                                  className={`saved-formula-card ${
-                                    isFormulaExpanded ? "is-open" : ""
-                                  }`}
+                                  style={{
+                                    fontWeight: 600,
+                                    minWidth: 0,
+                                    wordBreak: "break-word"
+                                  }}
                                 >
-                                  <button
-                                    className="saved-formula-summary"
-                                    type="button"
-                                    onClick={() =>
-                                      setExpandedFormulaId(
-                                        isFormulaExpanded ? null : formula.id
-                                      )
-                                    }
-                                    aria-expanded={isFormulaExpanded}
-                                  >
-                                    <span className="saved-formula-title">
-                                      <strong>{formula.name}</strong>
-                                      <small>{formula.requirementName}</small>
-                                    </span>
-
-                                    <span className="saved-formula-price-grid">
-                                      <span>
-                                        <small>S/ por kg</small>
-                                        <strong>
-                                          {formatMoney(
-                                            costingData.costWithProductionPerKg,
-                                            2
-                                          )}
-                                        </strong>
-                                      </span>
-                                      <span>
-                                        <small>S/ por saco</small>
-                                        <strong>
-                                          {formatMoney(
-                                            costingData.realCostPer50Kg,
-                                            2
-                                          )}
-                                        </strong>
-                                      </span>
-                                    </span>
-
-                                    <span className="saved-formula-chevron">
-                                      {isFormulaExpanded ? "▾" : "▸"}
-                                    </span>
-                                  </button>
-
-                                  {isFormulaExpanded && (
-                                    <div className="saved-formula-detail">
-                                      <div className="saved-meta-row">
-                                        <span>
-                                          Guardada: {new Date(
-                                            formula.createdAt
-                                          ).toLocaleDateString()}
-                                        </span>
-                                        <span className="saved-weight-badge">
-                                          50 kg
-                                        </span>
-                                      </div>
-
-                                      <label className="saved-multiplier-label">
-                                        Multiplicador
-                                        <input
-                                          className="price-input"
-                                          type="text"
-                                          inputMode="decimal"
-                                          value={getMultiplierText(formula)}
-                                          onChange={(event) =>
-                                            updateFormulaMultiplierText(
-                                              formula.id,
-                                              event.target.value
-                                            )
-                                          }
-                                          onBlur={() =>
-                                            finishMultiplierEdit(formula)
-                                          }
-                                          onFocus={(event) =>
-                                            event.currentTarget.select()
-                                          }
-                                        />
-                                      </label>
-
-                                      <div className="saved-cost-grid">
-                                        <div>
-                                          <span>Total mezcla</span>
-                                          <strong>
-                                            {formatKg(costingData.totalKg)} kg
-                                          </strong>
-                                        </div>
-                                        <div>
-                                          <span>Costo fórmula</span>
-                                          <strong>
-                                            S/ {formatMoney(
-                                              costingData.totalFormulaCost,
-                                              2
-                                            )}
-                                          </strong>
-                                        </div>
-                                        <div>
-                                          <span>Costo real aprox.</span>
-                                          <strong>
-                                            S/ {formatMoney(
-                                              costingData.totalRealCost,
-                                              2
-                                            )}
-                                          </strong>
-                                        </div>
-                                        <div>
-                                          <span>Venta sugerida saco</span>
-                                          <strong>
-                                            S/ {formatMoney(
-                                              costingData.salePer50Kg,
-                                              2
-                                            )}
-                                          </strong>
-                                        </div>
-                                      </div>
-
-                                      <div className="saved-ingredients-list">
-                                        {formula.result.ingredients.map((item) => (
-                                          <div
-                                            key={item.id}
-                                            className="saved-ingredient-row"
-                                          >
-                                            <span>{item.name}</span>
-                                            <strong>
-                                              {formatKg(
-                                                item.amountKg100 * multiplier
-                                              )} kg
-                                            </strong>
-                                          </div>
-                                        ))}
-                                      </div>
-
-                                      <div className="saved-actions-grid">
-                                        <button
-                                          className="action"
-                                          type="button"
-                                          onClick={() =>
-                                            copySavedFormula(formula)
-                                          }
-                                        >
-                                          📋 Copiar
-                                        </button>
-
-                                        <button
-                                          className="action secondary"
-                                          type="button"
-                                          onClick={() =>
-                                            viewSavedFormula(formula)
-                                          }
-                                        >
-                                          👁️ Ver resultados
-                                        </button>
-
-                                        <button
-                                          className="action secondary"
-                                          type="button"
-                                          onClick={() =>
-                                            renameSavedFormula(formula)
-                                          }
-                                        >
-                                          ✏️ Renombrar
-                                        </button>
-
-                                        <button
-                                          className="action secondary"
-                                          type="button"
-                                          onClick={() =>
-                                            duplicateSavedFormula(formula)
-                                          }
-                                        >
-                                          📄 Duplicar
-                                        </button>
-
-                                        <button
-                                          className="action secondary saved-delete-button"
-                                          type="button"
-                                          onClick={() => {
-                                            const confirmed = window.confirm(
-                                              `¿Eliminar la fórmula “${formula.name}”?`
-                                            );
-                                            if (confirmed) {
-                                              deleteSavedFormula(formula.id);
-                                              setExpandedFormulaId(null);
-                                            }
-                                          }}
-                                        >
-                                          🗑️ Eliminar
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
+                                  {item.name}
                                 </div>
-                              );
-                            })
-                          )}
-                        </div>
+
+                                <div
+                                  style={{
+                                    fontWeight: 700,
+                                    whiteSpace: "nowrap",
+                                    textAlign: "right"
+                                  }}
+                                >
+                                  {formatKg(item.amountKg100 * multiplier)} kg
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            className="action"
+                            type="button"
+                            onClick={() => copySavedFormula(formula)}
+                          >
+                            📋 Copiar fórmula multiplicada
+                          </button>
+
+                          <button
+                            className="action secondary"
+                            type="button"
+                            onClick={() => viewSavedFormula(formula)}
+                          >
+                            👁️ Ver fórmula guardada
+                          </button>
+
+                          <button
+                            className="action secondary"
+                            type="button"
+                            onClick={() => renameSavedFormula(formula)}
+                          >
+                            ✏️ Cambiar nombre
+                          </button>
+
+                          <button
+                            className="action secondary"
+                            type="button"
+                            onClick={() => duplicateSavedFormula(formula)}
+                          >
+                            📄 Duplicar fórmula
+                          </button>
+
+                          <button
+                            className="action secondary"
+                            type="button"
+                            onClick={() => deleteSavedFormula(formula.id)}
+                          >
+                            Eliminar fórmula
+                          </button>
+                        </>
                       )}
-                    </article>
+                    </div>
                   );
                 })}
               </div>
