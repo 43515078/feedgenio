@@ -376,11 +376,6 @@ tbody tr:last-child td {
   font-size: 26px;
 }
 
-.saved-heading p {
-  margin: 7px 0 0;
-  color: #66746c;
-  line-height: 1.45;
-}
 
 .saved-total-badge {
   min-width: 44px;
@@ -397,19 +392,6 @@ tbody tr:last-child td {
   font-size: 18px;
 }
 
-.saved-search-input {
-  width: 100%;
-  padding: 15px 17px;
-  border: 1px solid #d9e3dc;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgba(15, 30, 20, 0.05);
-}
-
-.saved-search-input:focus {
-  outline: 3px solid rgba(31, 122, 77, 0.14);
-  border-color: #1f7a4d;
-}
 
 .saved-empty,
 .saved-group-empty {
@@ -530,53 +512,14 @@ tbody tr:last-child td {
   min-width: 0;
 }
 
-.saved-formula-title strong,
-.saved-formula-title small {
-  display: block;
-}
-
 .saved-formula-title strong {
-  color: #18221c;
-  font-size: 20px;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-
-.saved-formula-title small {
-  margin-top: 6px;
-  color: #738078;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.saved-formula-price-grid {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.saved-formula-price-grid > span {
-  padding: 14px;
-  border: 1px solid #dfe5e1;
-  border-radius: 18px;
-  background: #f8faf9;
-}
-
-.saved-formula-price-grid small,
-.saved-formula-price-grid strong {
   display: block;
-}
-
-.saved-formula-price-grid small {
-  color: #6f7973;
-  font-size: 14px;
-}
-
-.saved-formula-price-grid strong {
-  margin-top: 5px;
-  color: #18211b;
-  font-size: 25px;
+  color: #18221c;
+  font-size: 17px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .saved-formula-chevron {
@@ -678,6 +621,49 @@ tbody tr:last-child td {
   text-align: right;
 }
 
+.saved-detail-section {
+  margin-top: 18px;
+}
+
+.saved-detail-section h3 {
+  margin: 0 0 10px;
+  color: #20342a;
+  font-size: 17px;
+}
+
+.saved-nutrients-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.saved-nutrient-item {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #dfe8e2;
+  border-radius: 15px;
+  background: #f2f7f4;
+}
+
+.saved-nutrient-item span,
+.saved-nutrient-item strong {
+  display: block;
+}
+
+.saved-nutrient-item span {
+  color: #68766e;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.saved-nutrient-item strong {
+  margin-top: 5px;
+  color: #20342a;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
 .saved-actions-grid {
   margin-top: 16px;
   display: grid;
@@ -703,9 +689,6 @@ tbody tr:last-child td {
     font-size: 23px;
   }
 
-  .saved-heading p {
-    font-size: 14px;
-  }
 
   .saved-group-toggle {
     padding: 17px;
@@ -736,12 +719,13 @@ tbody tr:last-child td {
     padding: 15px;
   }
 
-  .saved-formula-price-grid strong {
-    font-size: 22px;
-  }
 
   .saved-cost-grid,
   .saved-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-nutrients-grid {
     grid-template-columns: 1fr;
   }
 }
