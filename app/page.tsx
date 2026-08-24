@@ -33,7 +33,7 @@ import type { FormulaResult } from "@/lib/solver";
 import FormulaTab from "@/components/FormulaTab";
 import MatrixTab from "@/components/MatrixTab";
 import RequirementsTab from "@/components/RequirementsTab";
-import ResultsTab from "@/components/ResultsTab";
+import ResultsTab, { type ProductiveCosting } from "@/components/ResultsTab";
 
 type EditableIngredient = Ingredient & {
   active: boolean;
@@ -55,6 +55,8 @@ type SavedFormula = {
   ingredientsSnapshot?: EditableIngredient[];
   requirementSnapshot?: Requirement;
   costing?: SavedCosting;
+  productiveCostingSnapshot?: ProductiveCosting;
+  detailVersion?: 2;
 };
 
 type SavedFormulaGroupKey =
@@ -299,6 +301,40 @@ function calculateSavedCosting(formula: SavedFormula, multiplier: number) {
     totalKg,
     totalFormulaCost,
     totalRealCost
+  };
+}
+
+function calculateSavedProductiveCosting(formula: SavedFormula) {
+  const snapshot = formula.productiveCostingSnapshot;
+
+  if (!snapshot) return null;
+
+  const humanCostPer50Kg = numberOrDefault(snapshot.humanCostPer50Kg, 0);
+  const machineCostPer50Kg = numberOrDefault(snapshot.machineCostPer50Kg, 0);
+  const bagCostPer50Kg = numberOrDefault(snapshot.bagCostPer50Kg, 0);
+  const profitPer50Kg = numberOrDefault(snapshot.profitPer50Kg, 0);
+
+  const extrasPer50Kg =
+    humanCostPer50Kg + machineCostPer50Kg + bagCostPer50Kg;
+
+  const realCostPer50Kg = formula.result.costPer50Kg + extrasPer50Kg;
+  const realCostPerKg = realCostPer50Kg / 50;
+  const realCostPer100Kg = formula.result.costPer100Kg + extrasPer50Kg * 2;
+  const realCostPerTon = formula.result.costPerKg * 1000 + extrasPer50Kg * 20;
+  const salePer50Kg = realCostPer50Kg + profitPer50Kg;
+  const salePerKg = salePer50Kg / 50;
+
+  return {
+    humanCostPer50Kg,
+    machineCostPer50Kg,
+    bagCostPer50Kg,
+    profitPer50Kg,
+    realCostPer50Kg,
+    realCostPerKg,
+    realCostPer100Kg,
+    realCostPerTon,
+    salePer50Kg,
+    salePerKg
   };
 }
 
@@ -1014,7 +1050,7 @@ export default function HomePage() {
     }
   }
 
-  function saveCurrentFormula(costing?: SavedCosting) {
+  function saveCurrentFormula(productiveCosting?: ProductiveCosting) {
     if (!result?.feasible) {
       window.alert("No hay fórmula válida para guardar.");
       return;
@@ -1033,10 +1069,13 @@ export default function HomePage() {
       createdAt: new Date().toISOString(),
       multiplier: 1,
       requirementName: requirement.name,
-      result,
+      result: JSON.parse(JSON.stringify(result)),
       ingredientsSnapshot: JSON.parse(JSON.stringify(ingredients)),
       requirementSnapshot: cloneRequirementProfile(requirement),
-      costing: normalizeCosting(costing)
+      productiveCostingSnapshot: productiveCosting
+        ? JSON.parse(JSON.stringify(productiveCosting))
+        : undefined,
+      detailVersion: productiveCosting ? 2 : undefined
     };
 
     saveSavedFormulas([newFormula, ...savedFormulas]);
@@ -1356,6 +1395,13 @@ export default function HomePage() {
                                 formula,
                                 multiplier
                               );
+                              const productiveCostingData =
+                                calculateSavedProductiveCosting(formula);
+                              const hasDetailedSnapshot = Boolean(
+                                formula.detailVersion === 2 &&
+                                  formula.productiveCostingSnapshot &&
+                                  formula.requirementSnapshot
+                              );
 
                               return (
                                 <div
@@ -1397,99 +1443,246 @@ export default function HomePage() {
                                         </span>
                                       </div>
 
-                                      <label className="saved-multiplier-label">
-                                        Multiplicador
-                                        <input
-                                          className="price-input"
-                                          type="text"
-                                          inputMode="decimal"
-                                          value={getMultiplierText(formula)}
-                                          onChange={(event) =>
-                                            updateFormulaMultiplierText(
-                                              formula.id,
-                                              event.target.value
-                                            )
-                                          }
-                                          onBlur={() =>
-                                            finishMultiplierEdit(formula)
-                                          }
-                                          onFocus={(event) =>
-                                            event.currentTarget.select()
-                                          }
-                                        />
-                                      </label>
+                                      {hasDetailedSnapshot && productiveCostingData ? (
+                                        <>
+                                          <div className="saved-detail-section saved-productive-section">
+                                            <h3>🏭 Costeo productivo por 50 kg</h3>
 
-                                      <div className="saved-cost-grid">
-                                        <div>
-                                          <span>Total mezcla</span>
-                                          <strong>
-                                            {formatKg(costingData.totalKg)} kg
-                                          </strong>
-                                        </div>
-                                        <div>
-                                          <span>Costo fórmula</span>
-                                          <strong>
-                                            S/ {formatMoney(
-                                              costingData.totalFormulaCost,
-                                              2
-                                            )}
-                                          </strong>
-                                        </div>
-                                        <div>
-                                          <span>Costo real aprox.</span>
-                                          <strong>
-                                            S/ {formatMoney(
-                                              costingData.totalRealCost,
-                                              2
-                                            )}
-                                          </strong>
-                                        </div>
-                                        <div>
-                                          <span>Venta sugerida saco</span>
-                                          <strong>
-                                            S/ {formatMoney(
-                                              costingData.salePer50Kg,
-                                              2
-                                            )}
-                                          </strong>
-                                        </div>
-                                      </div>
-
-                                      <div className="saved-ingredients-list">
-                                        {formula.result.ingredients.map((item) => (
-                                          <div
-                                            key={item.id}
-                                            className="saved-ingredient-row"
-                                          >
-                                            <span>{item.name}</span>
-                                            <strong>
-                                              {formatKg(
-                                                item.amountKg100 * multiplier
-                                              )} kg
-                                            </strong>
-                                          </div>
-                                        ))}
-                                      </div>
-
-                                      <div className="saved-detail-section">
-                                        <h3>🧪 Nutrientes obtenidos</h3>
-
-                                        <div className="saved-nutrients-grid">
-                                          {nutrientKeys.map((key) => (
-                                            <div
-                                              key={key}
-                                              className="saved-nutrient-item"
-                                            >
-                                              <span>{nutrientLabels[key]}</span>
-                                              <strong>
-                                                {Number(
-                                                  formula.result.nutrients[key] ?? 0
-                                                ).toFixed(key === "energy" ? 0 : 3)}
-                                              </strong>
+                                            <div className="saved-productive-inputs">
+                                              <div>
+                                                <span>Costo humano</span>
+                                                <strong>S/ {formatMoney(productiveCostingData.humanCostPer50Kg, 2)}</strong>
+                                              </div>
+                                              <div>
+                                                <span>Costo máquina</span>
+                                                <strong>S/ {formatMoney(productiveCostingData.machineCostPer50Kg, 2)}</strong>
+                                              </div>
+                                              <div>
+                                                <span>Costo del saco</span>
+                                                <strong>S/ {formatMoney(productiveCostingData.bagCostPer50Kg, 2)}</strong>
+                                              </div>
+                                              <div>
+                                                <span>Ganancia fija por saco</span>
+                                                <strong>S/ {formatMoney(productiveCostingData.profitPer50Kg, 2)}</strong>
+                                              </div>
                                             </div>
-                                          ))}
-                                        </div>
-                                      </div>
+
+                                            <div className="saved-cost-sections">
+                                              <section className="saved-cost-section saved-cost-formula">
+                                                <h4>🌽 Costo de fórmula</h4>
+                                                <div className="saved-cost-section-grid">
+                                                  <div>
+                                                    <span>Por kg</span>
+                                                    <strong>S/ {formatMoney(formula.result.costPerKg, 3)}</strong>
+                                                  </div>
+                                                  <div>
+                                                    <span>Saco 50 kg</span>
+                                                    <strong>S/ {formatMoney(formula.result.costPer50Kg, 2)}</strong>
+                                                  </div>
+                                                </div>
+                                              </section>
+
+                                              <section className="saved-cost-section saved-cost-real">
+                                                <h4>🏭 Costo real</h4>
+                                                <div className="saved-cost-section-grid">
+                                                  <div>
+                                                    <span>Por kg</span>
+                                                    <strong>S/ {formatMoney(productiveCostingData.realCostPerKg, 3)}</strong>
+                                                  </div>
+                                                  <div>
+                                                    <span>Saco 50 kg</span>
+                                                    <strong>S/ {formatMoney(productiveCostingData.realCostPer50Kg, 2)}</strong>
+                                                  </div>
+                                                  <div>
+                                                    <span>100 kg</span>
+                                                    <strong>S/ {formatMoney(productiveCostingData.realCostPer100Kg, 2)}</strong>
+                                                  </div>
+                                                  <div>
+                                                    <span>Tonelada</span>
+                                                    <strong>S/ {formatMoney(productiveCostingData.realCostPerTon, 2)}</strong>
+                                                  </div>
+                                                </div>
+                                              </section>
+
+                                              <section className="saved-cost-section saved-cost-sale">
+                                                <h4>💰 Venta sugerida</h4>
+                                                <div className="saved-cost-section-grid">
+                                                  <div>
+                                                    <span>Saco 50 kg</span>
+                                                    <strong>S/ {formatMoney(productiveCostingData.salePer50Kg, 2)}</strong>
+                                                  </div>
+                                                  <div>
+                                                    <span>Por kg</span>
+                                                    <strong>S/ {formatMoney(productiveCostingData.salePerKg, 3)}</strong>
+                                                  </div>
+                                                </div>
+                                              </section>
+                                            </div>
+                                          </div>
+
+                                          <label className="saved-multiplier-label">
+                                            Multiplicador
+                                            <input
+                                              className="price-input"
+                                              type="text"
+                                              inputMode="decimal"
+                                              value={getMultiplierText(formula)}
+                                              onChange={(event) =>
+                                                updateFormulaMultiplierText(
+                                                  formula.id,
+                                                  event.target.value
+                                                )
+                                              }
+                                              onBlur={() => finishMultiplierEdit(formula)}
+                                              onFocus={(event) => event.currentTarget.select()}
+                                            />
+                                          </label>
+
+                                          <div className="saved-detail-section">
+                                            <h3>🌽 Fórmula obtenida</h3>
+                                            <div className="saved-formula-table">
+                                              <div className="saved-formula-table-head">
+                                                <span>Insumo</span>
+                                                <span>Kg</span>
+                                                <span>Costo</span>
+                                              </div>
+                                              {formula.result.ingredients.map((item) => (
+                                                <div key={item.id} className="saved-formula-table-row">
+                                                  <span>{item.name}</span>
+                                                  <strong>{formatKg(item.amountKg100 * multiplier)}</strong>
+                                                  <strong>S/ {formatMoney(item.cost * multiplier, 2)}</strong>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+
+                                          <div className="saved-detail-section">
+                                            <h3>🧪 Nutrientes obtenidos</h3>
+                                            <div className="saved-nutrient-table">
+                                              <div className="saved-nutrient-table-head">
+                                                <span>Nutriente</span>
+                                                <span>Mín</span>
+                                                <span>Obtenido</span>
+                                                <span>Máx</span>
+                                              </div>
+
+                                              {nutrientKeys.map((key) => {
+                                                const nutrientRequirement =
+                                                  formula.requirementSnapshot?.nutrients?.[key];
+                                                const minValue = Number(
+                                                  nutrientRequirement?.min ??
+                                                    formula.requirementSnapshot?.[key] ??
+                                                    0
+                                                );
+                                                const maxValue = nutrientRequirement?.max;
+                                                const decimals = key === "energy" ? 0 : 3;
+
+                                                return (
+                                                  <div key={key} className="saved-nutrient-table-row">
+                                                    <span>{nutrientLabels[key]}</span>
+                                                    <span>{minValue.toFixed(decimals)}</span>
+                                                    <strong>
+                                                      {Number(formula.result.nutrients[key] ?? 0).toFixed(decimals)}
+                                                    </strong>
+                                                    <span>
+                                                      {typeof maxValue === "number"
+                                                        ? Number(maxValue).toFixed(decimals)
+                                                        : "Sin máx"}
+                                                    </span>
+                                                  </div>
+                                                );
+                                              })}
+
+                                              <div className="saved-nutrient-table-row">
+                                                <span>Balance electrolítico</span>
+                                                <span>
+                                                  {Number(
+                                                    formula.requirementSnapshot?.derivedRequirements?.electrolyteBalance?.min ??
+                                                      0
+                                                  ).toFixed(3)}
+                                                </span>
+                                                <strong>
+                                                  {Number(
+                                                    formula.result.derivedMetrics?.electrolyteBalance ?? 0
+                                                  ).toFixed(3)}
+                                                </strong>
+                                                <span>
+                                                  {typeof formula.requirementSnapshot?.derivedRequirements?.electrolyteBalance?.max ===
+                                                  "number"
+                                                    ? Number(
+                                                        formula.requirementSnapshot.derivedRequirements.electrolyteBalance.max
+                                                      ).toFixed(3)
+                                                    : "Sin máx"}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <label className="saved-multiplier-label">
+                                            Multiplicador
+                                            <input
+                                              className="price-input"
+                                              type="text"
+                                              inputMode="decimal"
+                                              value={getMultiplierText(formula)}
+                                              onChange={(event) =>
+                                                updateFormulaMultiplierText(
+                                                  formula.id,
+                                                  event.target.value
+                                                )
+                                              }
+                                              onBlur={() => finishMultiplierEdit(formula)}
+                                              onFocus={(event) => event.currentTarget.select()}
+                                            />
+                                          </label>
+
+                                          <div className="saved-cost-grid">
+                                            <div>
+                                              <span>Total mezcla</span>
+                                              <strong>{formatKg(costingData.totalKg)} kg</strong>
+                                            </div>
+                                            <div>
+                                              <span>Costo fórmula</span>
+                                              <strong>S/ {formatMoney(costingData.totalFormulaCost, 2)}</strong>
+                                            </div>
+                                            <div>
+                                              <span>Costo real aprox.</span>
+                                              <strong>S/ {formatMoney(costingData.totalRealCost, 2)}</strong>
+                                            </div>
+                                            <div>
+                                              <span>Venta sugerida saco</span>
+                                              <strong>S/ {formatMoney(costingData.salePer50Kg, 2)}</strong>
+                                            </div>
+                                          </div>
+
+                                          <div className="saved-ingredients-list">
+                                            {formula.result.ingredients.map((item) => (
+                                              <div key={item.id} className="saved-ingredient-row">
+                                                <span>{item.name}</span>
+                                                <strong>{formatKg(item.amountKg100 * multiplier)} kg</strong>
+                                              </div>
+                                            ))}
+                                          </div>
+
+                                          <div className="saved-detail-section">
+                                            <h3>🧪 Nutrientes obtenidos</h3>
+                                            <div className="saved-nutrients-grid">
+                                              {nutrientKeys.map((key) => (
+                                                <div key={key} className="saved-nutrient-item">
+                                                  <span>{nutrientLabels[key]}</span>
+                                                  <strong>
+                                                    {Number(formula.result.nutrients[key] ?? 0).toFixed(
+                                                      key === "energy" ? 0 : 3
+                                                    )}
+                                                  </strong>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </>
+                                      )}
 
                                       <div className="saved-actions-grid">
                                         <button
