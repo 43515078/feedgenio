@@ -1106,3 +1106,223 @@ tbody tr:last-child td {
     flex-basis: 38px;
   }
 }
+
+/* ===== Detalle completo de fórmulas guardadas (v2) ===== */
+
+.saved-productive-section {
+  padding: 14px;
+  border: 1px solid #dfe8e2;
+  border-radius: 18px;
+  background: #f7faf8;
+}
+
+.saved-productive-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.saved-productive-inputs > div {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #e1e8e4;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.saved-productive-inputs span,
+.saved-productive-inputs strong {
+  display: block;
+}
+
+.saved-productive-inputs span {
+  color: #68766e;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.saved-productive-inputs strong {
+  margin-top: 4px;
+  color: #20342a;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.saved-cost-sections {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.saved-cost-section {
+  padding: 11px;
+  border: 1px solid transparent;
+  border-radius: 15px;
+}
+
+.saved-cost-section h4 {
+  margin: 0 0 8px;
+  color: #20342a;
+  font-size: 14px;
+}
+
+.saved-cost-formula {
+  background: #f5f0df;
+  border-color: #eadfb9;
+}
+
+.saved-cost-real {
+  background: #eaf4ef;
+  border-color: #d2e5da;
+}
+
+.saved-cost-sale {
+  background: #eef0f8;
+  border-color: #d9dcef;
+}
+
+.saved-cost-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.saved-cost-section-grid > div {
+  min-width: 0;
+}
+
+.saved-cost-section-grid span,
+.saved-cost-section-grid strong {
+  display: block;
+}
+
+.saved-cost-section-grid span {
+  color: #68766e;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.saved-cost-section-grid strong {
+  margin-top: 3px;
+  color: #20342a;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.saved-formula-table,
+.saved-nutrient-table {
+  overflow: hidden;
+  border: 1px solid #dfe8e2;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.saved-formula-table-head,
+.saved-formula-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(58px, 0.7fr) minmax(72px, 0.8fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px 11px;
+}
+
+.saved-formula-table-head {
+  background: #eef5f1;
+  color: #506159;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.saved-formula-table-row {
+  border-top: 1px solid #e6ece8;
+  font-size: 13px;
+}
+
+.saved-formula-table-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.saved-formula-table-row strong {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.saved-formula-table-head span:not(:first-child) {
+  text-align: right;
+}
+
+.saved-nutrient-table-head,
+.saved-nutrient-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 0.72fr));
+  gap: 5px;
+  align-items: center;
+  padding: 9px 8px;
+}
+
+.saved-nutrient-table-head {
+  background: #eef5f1;
+  color: #506159;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.saved-nutrient-table-row {
+  border-top: 1px solid #e6ece8;
+  font-size: 11px;
+}
+
+.saved-nutrient-table-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.saved-nutrient-table-row > span:not(:first-child),
+.saved-nutrient-table-row > strong,
+.saved-nutrient-table-head > span:not(:first-child) {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.saved-nutrient-table-row > strong {
+  color: #20342a;
+}
+
+@media (max-width: 520px) {
+  .saved-productive-section {
+    padding: 11px;
+  }
+
+  .saved-productive-inputs {
+    gap: 7px;
+  }
+
+  .saved-productive-inputs > div {
+    padding: 9px;
+  }
+
+  .saved-formula-table-head,
+  .saved-formula-table-row {
+    grid-template-columns: minmax(0, 1.5fr) 58px 70px;
+    padding: 9px 8px;
+    gap: 5px;
+  }
+
+  .saved-formula-table-row {
+    font-size: 12px;
+  }
+
+  .saved-nutrient-table-head,
+  .saved-nutrient-table-row {
+    grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 0.68fr));
+    padding: 8px 5px;
+    gap: 3px;
+  }
+
+  .saved-nutrient-table-head,
+  .saved-nutrient-table-row {
+    font-size: 10px;
+  }
+}
