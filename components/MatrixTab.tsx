@@ -1,6 +1,7 @@
 import { useRef } from "react";
 
 import {
+  calculateElectrolyteBalance,
   nutrientLabels,
   type Ingredient,
   type NutrientKey,
@@ -103,6 +104,8 @@ export default function MatrixTab({
               {nutrientKeys.map((key) => (
                 <th key={key}>{nutrientLabels[key]}</th>
               ))}
+
+              <th>BE (mEq/kg)</th>
 
               <th>Eliminar</th>
             </tr>
@@ -214,6 +217,21 @@ export default function MatrixTab({
                     />
                   </td>
                 ))}
+
+                <td>
+                  <input
+                    className="price-input"
+                    type="number"
+                    value={calculateElectrolyteBalance(
+                      ingredient.nutrients.sodium,
+                      ingredient.nutrients.potassium,
+                      ingredient.nutrients.chlorine
+                    ).toFixed(0)}
+                    readOnly
+                    aria-label={`Balance electrolítico calculado de ${ingredient.name}`}
+                    title="Calculado automáticamente desde sodio, potasio y cloro"
+                  />
+                </td>
 
                 <td>
                   <button
