@@ -21,7 +21,7 @@ type SavedFormula = {
 type Props = {
   result: FormulaResult | null;
   requirement: Requirement;
-  onSaveFormula: () => void;
+  onSaveFormula: (productiveCosting: ProductiveCosting) => void;
   savedFormulas: SavedFormula[];
   comparisonFormulaId: string;
   comparisonFormula: SavedFormula | null;
@@ -52,7 +52,7 @@ type ComparisonSnapshot = {
   nutrients: Record<NutrientKey, number>;
 };
 
-type ProductiveCosting = {
+export type ProductiveCosting = {
   humanCostPer50Kg: number;
   machineCostPer50Kg: number;
   bagCostPer50Kg: number;
@@ -705,7 +705,11 @@ export default function ResultsTab({
                 </table>
               </div>
 
-              <button className="action" type="button" onClick={onSaveFormula}>
+              <button
+                className="action"
+                type="button"
+                onClick={() => onSaveFormula(productiveCosting)}
+              >
                 💾 Guardar fórmula
               </button>
 
