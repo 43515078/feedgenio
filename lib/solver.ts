@@ -2,6 +2,7 @@
 
 import {
   calculateAllDerivedMetrics,
+  calculateElectrolyteBalance,
   nutrientDecimals,
   nutrientFullLabels,
   nutrientKeys,
@@ -474,6 +475,39 @@ function createModel(
     }
   }
 
+  const electrolyteRange =
+    requirement.derivedRequirements
+      .electrolyteBalance;
+
+  const electrolyteConstraintKey =
+    "derived_electrolyteBalance";
+
+  if (electrolyteRange.enabled) {
+    const electrolyteConstraint: SolverConstraint = {};
+
+    if (
+      typeof electrolyteRange.min === "number"
+    ) {
+      electrolyteConstraint.min =
+        electrolyteRange.min;
+    }
+
+    if (
+      typeof electrolyteRange.max === "number"
+    ) {
+      electrolyteConstraint.max =
+        electrolyteRange.max;
+    }
+
+    if (
+      electrolyteConstraint.min !== undefined ||
+      electrolyteConstraint.max !== undefined
+    ) {
+      model.constraints[electrolyteConstraintKey] =
+        electrolyteConstraint;
+    }
+  }
+
   for (const ingredient of ingredients) {
     const minimum = Number(
       ingredient.min || 0
@@ -516,6 +550,23 @@ function createModel(
         Number(
           ingredient.nutrients?.[key] ??
             0
+        ) / 100;
+    }
+
+    if (
+      model.constraints[electrolyteConstraintKey]
+    ) {
+      variable[electrolyteConstraintKey] =
+        calculateElectrolyteBalance(
+          Number(
+            ingredient.nutrients?.sodium ?? 0
+          ),
+          Number(
+            ingredient.nutrients?.potassium ?? 0
+          ),
+          Number(
+            ingredient.nutrients?.chlorine ?? 0
+          )
         ) / 100;
     }
 
