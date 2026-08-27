@@ -1544,13 +1544,11 @@ export default function HomePage() {
                                               <div className="saved-formula-table-head">
                                                 <span>Insumo</span>
                                                 <span>Kg</span>
-                                                <span>Costo</span>
                                               </div>
                                               {formula.result.ingredients.map((item) => (
                                                 <div key={item.id} className="saved-formula-table-row">
                                                   <span>{item.name}</span>
                                                   <strong>{formatKg(item.amountKg100 * multiplier)}</strong>
-                                                  <strong>S/ {formatMoney(item.cost * multiplier, 2)}</strong>
                                                 </div>
                                               ))}
                                             </div>

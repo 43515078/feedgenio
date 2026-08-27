@@ -1214,7 +1214,7 @@ tbody tr:last-child td {
 
 .saved-formula-table,
 .saved-nutrient-table {
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid #dfe8e2;
   border-radius: 16px;
   background: #ffffff;
@@ -1223,11 +1223,10 @@ tbody tr:last-child td {
 .saved-formula-table-head,
 .saved-formula-table-row {
   display: grid;
-  grid-template-columns: minmax(215px, 1.6fr) 78px 105px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 10px;
   align-items: center;
-  min-width: 430px;
-  padding: 9px 8px;
+  padding: 10px 14px;
 }
 
 .saved-formula-table-head {
@@ -1259,10 +1258,9 @@ tbody tr:last-child td {
 .saved-nutrient-table-head,
 .saved-nutrient-table-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.45fr) repeat(3, minmax(82px, 0.72fr));
-  gap: 5px;
+  grid-template-columns: minmax(0, 1.28fr) 0.72fr 0.88fr 0.72fr;
+  gap: 6px;
   align-items: center;
-  min-width: 430px;
   padding: 10px 9px;
 }
 
@@ -1295,6 +1293,12 @@ tbody tr:last-child td {
   color: #20342a;
 }
 
+.saved-nutrient-table-head > span:not(:first-child),
+.saved-nutrient-table-row > span:not(:first-child),
+.saved-nutrient-table-row > strong {
+  white-space: nowrap;
+}
+
 @media (max-width: 520px) {
   .saved-productive-section {
     padding: 11px;
@@ -1310,10 +1314,9 @@ tbody tr:last-child td {
 
   .saved-formula-table-head,
   .saved-formula-table-row {
-    grid-template-columns: minmax(215px, 1.6fr) 78px 105px;
-    min-width: 430px;
-    padding: 9px 8px;
-    gap: 5px;
+    grid-template-columns: minmax(0, 1fr) 82px;
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .saved-formula-table-row {
@@ -1322,9 +1325,8 @@ tbody tr:last-child td {
 
   .saved-nutrient-table-head,
   .saved-nutrient-table-row {
-    grid-template-columns: minmax(150px, 1.45fr) repeat(3, minmax(82px, 0.72fr));
-    min-width: 430px;
-    padding: 9px 8px;
+    grid-template-columns: minmax(0, 1.22fr) 0.68fr 0.82fr 0.68fr;
+    padding: 9px 7px;
     gap: 4px;
   }
 
